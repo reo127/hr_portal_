@@ -35,6 +35,18 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
 
+  # HTTP client for API calls
+  dio: ^5.4.0
+
+  # Secure storage for JWT tokens
+  flutter_secure_storage: ^9.0.0
+
+  # State management
+  provider: ^6.1.1
+
+  # JWT decoder to extract token expiry
+  jwt_decoder: ^2.0.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
