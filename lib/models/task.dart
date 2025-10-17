@@ -13,6 +13,38 @@ class Task {
     this.status = 'pending',
   });
 
+  factory Task.fromJson(Map<String, dynamic> json) {
+    // Handle hours as either int or double
+    int hoursValue = 0;
+    if (json['hours'] != null) {
+      if (json['hours'] is int) {
+        hoursValue = json['hours'];
+      } else if (json['hours'] is double) {
+        hoursValue = (json['hours'] as double).toInt();
+      } else {
+        hoursValue = int.tryParse(json['hours'].toString()) ?? 0;
+      }
+    }
+
+    return Task(
+      id: json['_id'] ?? '',
+      title: json['task'] ?? '',
+      description: json['summary'] ?? '',
+      hours: hoursValue,
+      status: json['status'] ?? 'pending',
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      '_id': id,
+      'title': title,
+      'description': description,
+      'hours': hours,
+      'status': status,
+    };
+  }
+
   Task copyWith({
     String? id,
     String? title,

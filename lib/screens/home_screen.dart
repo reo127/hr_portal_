@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/task.dart';
 import '../providers/auth_provider.dart';
+import '../services/task_service.dart';
 import 'login_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -20,6 +21,22 @@ class _HomeScreenState extends State<HomeScreen> {
   int _selectedMinutes = 15; // Default minutes
 
   final List<Task> _tasks = [];
+  final TaskService _taskService = TaskService();
+
+  // Pagination state
+  int _currentPage = 1;
+  final int _limit = 5;
+  int _totalTasks = 0;
+  int _totalPages = 0;
+  bool _hasMore = false;
+  bool _isLoading = false;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchTasks();
+  }
 
   @override
   void dispose() {
@@ -27,6 +44,62 @@ class _HomeScreenState extends State<HomeScreen> {
     _descriptionController.dispose();
     _hoursController.dispose();
     super.dispose();
+  }
+
+  // Fetch tasks from API
+  Future<void> _fetchTasks() async {
+    print('DEBUG HomeScreen: _fetchTasks called');
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      print('DEBUG HomeScreen: Calling taskService.getTasks');
+      final result = await _taskService.getTasks(
+        page: _currentPage,
+        limit: _limit,
+      );
+
+      print('DEBUG HomeScreen: Result received: $result');
+
+      setState(() {
+        _tasks.clear();
+        _tasks.addAll(result['tasks'] as List<Task>);
+        _totalTasks = result['total'];
+        _totalPages = result['totalPages'];
+        _hasMore = result['hasMore'];
+        _isLoading = false;
+      });
+
+      print('DEBUG HomeScreen: Tasks updated, count: ${_tasks.length}');
+    } catch (e) {
+      print('DEBUG HomeScreen: Error caught: $e');
+      setState(() {
+        _errorMessage = e.toString().replaceFirst('Exception: ', '');
+        _isLoading = false;
+      });
+    }
+  }
+
+  // Go to next page
+  void _nextPage() {
+    if (_currentPage < _totalPages) {
+      setState(() {
+        _currentPage++;
+      });
+      _fetchTasks();
+    }
+  }
+
+  // Go to previous page
+  void _previousPage() {
+    if (_currentPage > 1) {
+      setState(() {
+        _currentPage--;
+      });
+      _fetchTasks();
+    }
   }
 
   // Convert hours and minutes to total hours (decimal)
@@ -251,7 +324,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ListTile(
               leading: const Icon(Icons.task),
               title: const Text('Tasks'),
-              subtitle: Text('${_tasks.length} total'),
+              subtitle: Text('$_totalTasks total'),
               onTap: () {
                 Navigator.pop(context);
               },
@@ -382,90 +455,173 @@ class _HomeScreenState extends State<HomeScreen> {
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
                 Text(
-                  '${_tasks.length} tasks',
+                  '$_totalTasks total tasks',
                   style: const TextStyle(fontSize: 14, color: Colors.grey),
                 ),
               ],
             ),
             const SizedBox(height: 12),
             Expanded(
-              child: _tasks.isEmpty
-                  ? const Center(
-                      child: Text(
-                        'No tasks yet. Add your first task!',
-                        style: TextStyle(fontSize: 16, color: Colors.grey),
-                      ),
-                    )
-                  : ListView.builder(
-                      itemCount: _tasks.length,
-                      itemBuilder: (context, index) {
-                        final task = _tasks[index];
-                        return Card(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          elevation: 2,
-                          child: ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: task.status == 'completed'
-                                  ? Colors.green
-                                  : Colors.orange,
-                              child: Icon(
-                                task.status == 'completed'
-                                    ? Icons.check
-                                    : Icons.pending,
-                                color: Colors.white,
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _errorMessage != null
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.error_outline,
+                                  size: 48, color: Colors.red),
+                              const SizedBox(height: 16),
+                              Text(
+                                _errorMessage!,
+                                style: const TextStyle(color: Colors.red),
+                                textAlign: TextAlign.center,
                               ),
-                            ),
-                            title: Text(
-                              task.title,
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                decoration: task.status == 'completed'
-                                    ? TextDecoration.lineThrough
-                                    : null,
+                              const SizedBox(height: 16),
+                              ElevatedButton(
+                                onPressed: _fetchTasks,
+                                child: const Text('Retry'),
                               ),
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                            ],
+                          ),
+                        )
+                      : _tasks.isEmpty
+                          ? const Center(
+                              child: Text(
+                                'No tasks found.',
+                                style: TextStyle(
+                                    fontSize: 16, color: Colors.grey),
+                              ),
+                            )
+                          : Column(
                               children: [
-                                const SizedBox(height: 4),
-                                Text(task.description),
-                                const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    Icon(Icons.access_time, size: 16, color: Colors.grey[600]),
-                                    const SizedBox(width: 4),
-                                    Text('${task.hours} hour(s)'),
-                                    const SizedBox(width: 16),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 8, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: task.status == 'completed'
-                                            ? Colors.green[100]
-                                            : Colors.orange[100],
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Text(
-                                        task.status.toUpperCase(),
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold,
-                                          color: task.status == 'completed'
-                                              ? Colors.green[800]
-                                              : Colors.orange[800],
+                                Expanded(
+                                  child: ListView.builder(
+                                    itemCount: _tasks.length,
+                                    itemBuilder: (context, index) {
+                                      final task = _tasks[index];
+                                      return Card(
+                                        margin:
+                                            const EdgeInsets.only(bottom: 12),
+                                        elevation: 2,
+                                        child: ListTile(
+                                          leading: CircleAvatar(
+                                            backgroundColor:
+                                                task.status == 'completed'
+                                                    ? Colors.green
+                                                    : Colors.orange,
+                                            child: Icon(
+                                              task.status == 'completed'
+                                                  ? Icons.check
+                                                  : Icons.pending,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                          title: Text(
+                                            task.title,
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              decoration:
+                                                  task.status == 'completed'
+                                                      ? TextDecoration
+                                                          .lineThrough
+                                                      : null,
+                                            ),
+                                          ),
+                                          subtitle: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              const SizedBox(height: 4),
+                                              Text(task.description),
+                                              const SizedBox(height: 4),
+                                              Row(
+                                                children: [
+                                                  Icon(Icons.access_time,
+                                                      size: 16,
+                                                      color: Colors.grey[600]),
+                                                  const SizedBox(width: 4),
+                                                  Text('${task.hours} hour(s)'),
+                                                  const SizedBox(width: 16),
+                                                  Container(
+                                                    padding: const EdgeInsets
+                                                        .symmetric(
+                                                        horizontal: 8,
+                                                        vertical: 2),
+                                                    decoration: BoxDecoration(
+                                                      color: task.status ==
+                                                              'completed'
+                                                          ? Colors.green[100]
+                                                          : Colors.orange[100],
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              12),
+                                                    ),
+                                                    child: Text(
+                                                      task.status.toUpperCase(),
+                                                      style: TextStyle(
+                                                        fontSize: 12,
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                        color: task.status ==
+                                                                'completed'
+                                                            ? Colors.green[800]
+                                                            : Colors
+                                                                .orange[800],
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
+                                          ),
+                                          trailing: const Icon(Icons.edit),
+                                          onTap: () => _showEditDialog(task),
                                         ),
-                                      ),
-                                    ),
-                                  ],
+                                      );
+                                    },
+                                  ),
                                 ),
+                                // Pagination controls
+                                if (_totalPages > 1)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 8, horizontal: 16),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey[100],
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        IconButton(
+                                          icon: const Icon(
+                                              Icons.arrow_back_ios_new),
+                                          onPressed: _currentPage > 1
+                                              ? _previousPage
+                                              : null,
+                                        ),
+                                        Text(
+                                          'Page $_currentPage of $_totalPages',
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(
+                                              Icons.arrow_forward_ios),
+                                          onPressed:
+                                              _currentPage < _totalPages
+                                                  ? _nextPage
+                                                  : null,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                               ],
                             ),
-                            trailing: const Icon(Icons.edit),
-                            onTap: () => _showEditDialog(task),
-                          ),
-                        );
-                      },
-                    ),
             ),
           ],
         ),
