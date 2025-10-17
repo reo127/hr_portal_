@@ -19,13 +19,15 @@ class _HomeScreenState extends State<HomeScreen> {
   final _descriptionController = TextEditingController();
   final _hoursController = TextEditingController();
   int _selectedMinutes = 15; // Default minutes
+  DateTime _selectedDate = DateTime.now();
+  String _selectedStatus = 'inprogress';
 
   final List<Task> _tasks = [];
   final TaskService _taskService = TaskService();
 
   // Pagination state
   int _currentPage = 1;
-  final int _limit = 5;
+  final int _limit = 10;
   int _totalTasks = 0;
   int _totalPages = 0;
   bool _hasMore = false;
@@ -109,26 +111,100 @@ class _HomeScreenState extends State<HomeScreen> {
     return hours + minutesInHours;
   }
 
-  void _addTask() {
+  // Show date picker
+  Future<void> _selectDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+    );
+    if (picked != null && picked != _selectedDate) {
+      setState(() {
+        _selectedDate = picked;
+      });
+    }
+  }
+
+  Future<void> _addTask() async {
     if (_formKey.currentState!.validate()) {
       setState(() {
-        _tasks.add(Task(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
+        _isLoading = true;
+      });
+
+      try {
+        // Get userId and username from provider
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        final userId = authProvider.user?.userId;
+        final employeeName = authProvider.user?.username;
+
+        if (userId == null || employeeName == null) {
+          throw Exception('User data not found');
+        }
+
+        // Format date as YYYY-MM-DD
+        final formattedDate =
+            '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}';
+
+        // Create task object
+        final newTask = Task(
+          id: '',
           title: _titleController.text,
           description: _descriptionController.text,
           hours: _calculateTotalHours().toInt(),
-          status: 'pending',
-        ));
-      });
+          status: _selectedStatus,
+          date: formattedDate,
+          userId: userId,
+          employeeName: employeeName,
+          reason: '',
+        );
 
-      _titleController.clear();
-      _descriptionController.clear();
-      _hoursController.clear();
-      _selectedMinutes = 15;
+        print('DEBUG: Creating task with data:');
+        print('  title: ${_titleController.text}');
+        print('  description: ${_descriptionController.text}');
+        print('  hours: ${_calculateTotalHours().toInt()}');
+        print('  status: $_selectedStatus');
+        print('  date: $formattedDate');
+        print('  userId: $userId');
+        print('  employeeName: $employeeName');
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Task added successfully!')),
-      );
+        // Call API to create task
+        await _taskService.createTask(newTask);
+
+        // Clear form
+        _titleController.clear();
+        _descriptionController.clear();
+        _hoursController.clear();
+        _selectedMinutes = 15;
+        _selectedDate = DateTime.now();
+        _selectedStatus = 'inprogress';
+
+        // Refresh tasks list
+        await _fetchTasks();
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Task added successfully!')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Failed to add task: ${e.toString().replaceFirst('Exception: ', '')}',
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
     }
   }
 
@@ -213,7 +289,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   items: const [
                     DropdownMenuItem(value: 'pending', child: Text('Pending')),
-                    DropdownMenuItem(value: 'completed', child: Text('Completed')),
+                    DropdownMenuItem(
+                      value: 'completed',
+                      child: Text('Completed'),
+                    ),
                   ],
                   onChanged: (value) {
                     setDialogState(() {
@@ -268,6 +347,199 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  void _showAddTaskDialog() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+          left: 16,
+          right: 16,
+          top: 16,
+        ),
+        child: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Add New Task',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _titleController,
+                  decoration: const InputDecoration(
+                    labelText: 'Title',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.title),
+                    isDense: true,
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter a title';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _descriptionController,
+                  decoration: const InputDecoration(
+                    labelText: 'Description',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.description),
+                    isDense: true,
+                  ),
+                  maxLines: 2,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter a description';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _hoursController,
+                        decoration: const InputDecoration(
+                          labelText: 'Hours',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.access_time),
+                          isDense: true,
+                        ),
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Enter hours';
+                          }
+                          if (int.tryParse(value) == null) {
+                            return 'Invalid number';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: DropdownButtonFormField<int>(
+                        value: _selectedMinutes,
+                        decoration: const InputDecoration(
+                          labelText: 'Minutes',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        items: const [
+                          DropdownMenuItem(value: 15, child: Text('15')),
+                          DropdownMenuItem(value: 30, child: Text('30')),
+                          DropdownMenuItem(value: 45, child: Text('45')),
+                        ],
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedMinutes = value!;
+                          });
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        onTap: () => _selectDate(context),
+                        child: InputDecorator(
+                          decoration: const InputDecoration(
+                            labelText: 'Date',
+                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.calendar_today),
+                            isDense: true,
+                          ),
+                          child: Text(
+                            '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}',
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: _selectedStatus,
+                        decoration: const InputDecoration(
+                          labelText: 'Status',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'inprogress',
+                            child: Text('In Progress'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'completed',
+                            child: Text('Completed'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'pending',
+                            child: Text('Pending'),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedStatus = value!;
+                          });
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: () async {
+                    final nav = Navigator.of(context);
+                    await _addTask();
+                    if (mounted) nav.pop();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  child: const Text('Add Task', style: TextStyle(fontSize: 16)),
+                ),
+                const SizedBox(height: 16),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -283,9 +555,7 @@ class _HomeScreenState extends State<HomeScreen> {
               builder: (context, authProvider, child) {
                 final username = authProvider.user?.username ?? 'User';
                 return DrawerHeader(
-                  decoration: const BoxDecoration(
-                    color: Colors.deepPurple,
-                  ),
+                  decoration: const BoxDecoration(color: Colors.deepPurple),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.end,
@@ -304,10 +574,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(height: 4),
                       const Text(
                         'Task Manager',
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 14,
-                        ),
+                        style: TextStyle(color: Colors.white70, fontSize: 14),
                       ),
                     ],
                   ),
@@ -338,292 +605,211 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              'Add New Task',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            Form(
-              key: _formKey,
-              child: Column(
-                children: [
-                  TextFormField(
-                    controller: _titleController,
-                    decoration: const InputDecoration(
-                      labelText: 'Title',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.title),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter a title';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _descriptionController,
-                    decoration: const InputDecoration(
-                      labelText: 'Description',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.description),
-                    ),
-                    maxLines: 3,
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter a description';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        flex: 2,
-                        child: TextFormField(
-                          controller: _hoursController,
-                          decoration: const InputDecoration(
-                            labelText: 'Hours',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.access_time),
-                          ),
-                          keyboardType: TextInputType.number,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly,
-                          ],
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Enter hours';
-                            }
-                            if (int.tryParse(value) == null) {
-                              return 'Invalid number';
-                            }
-                            return null;
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        flex: 2,
-                        child: DropdownButtonFormField<int>(
-                          value: _selectedMinutes,
-                          decoration: const InputDecoration(
-                            labelText: 'Minutes',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.timer),
-                          ),
-                          items: const [
-                            DropdownMenuItem(value: 15, child: Text('15')),
-                            DropdownMenuItem(value: 30, child: Text('30')),
-                            DropdownMenuItem(value: 45, child: Text('45')),
-                          ],
-                          onChanged: (value) {
-                            setState(() {
-                              _selectedMinutes = value!;
-                            });
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: _addTask,
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                    child: const Text('Add Task', style: TextStyle(fontSize: 16)),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-            const Divider(),
-            const SizedBox(height: 8),
-            Row(
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text(
                   'Your Tasks',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                 ),
                 Text(
-                  '$_totalTasks total tasks',
+                  '$_totalTasks tasks',
                   style: const TextStyle(fontSize: 14, color: Colors.grey),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            Expanded(
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _errorMessage != null
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.error_outline,
-                                  size: 48, color: Colors.red),
-                              const SizedBox(height: 16),
-                              Text(
-                                _errorMessage!,
-                                style: const TextStyle(color: Colors.red),
-                                textAlign: TextAlign.center,
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _errorMessage != null
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.error_outline,
+                          size: 48,
+                          color: Colors.red,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          _errorMessage!,
+                          style: const TextStyle(color: Colors.red),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: _fetchTasks,
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  )
+                : _tasks.isEmpty
+                ? const Center(
+                    child: Text(
+                      'No tasks found.',
+                      style: TextStyle(fontSize: 16, color: Colors.grey),
+                    ),
+                  )
+                : Column(
+                    children: [
+                      Expanded(
+                        child: ListView.builder(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: _tasks.length,
+                          itemBuilder: (context, index) {
+                            final task = _tasks[index];
+                            return Card(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              elevation: 1,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
                               ),
-                              const SizedBox(height: 16),
-                              ElevatedButton(
-                                onPressed: _fetchTasks,
-                                child: const Text('Retry'),
-                              ),
-                            ],
-                          ),
-                        )
-                      : _tasks.isEmpty
-                          ? const Center(
-                              child: Text(
-                                'No tasks found.',
-                                style: TextStyle(
-                                    fontSize: 16, color: Colors.grey),
-                              ),
-                            )
-                          : Column(
-                              children: [
-                                Expanded(
-                                  child: ListView.builder(
-                                    itemCount: _tasks.length,
-                                    itemBuilder: (context, index) {
-                                      final task = _tasks[index];
-                                      return Card(
-                                        margin:
-                                            const EdgeInsets.only(bottom: 12),
-                                        elevation: 2,
-                                        child: ListTile(
-                                          leading: CircleAvatar(
-                                            backgroundColor:
-                                                task.status == 'completed'
-                                                    ? Colors.green
-                                                    : Colors.orange,
-                                            child: Icon(
-                                              task.status == 'completed'
-                                                  ? Icons.check
-                                                  : Icons.pending,
-                                              color: Colors.white,
-                                            ),
-                                          ),
-                                          title: Text(
-                                            task.title,
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              decoration:
-                                                  task.status == 'completed'
-                                                      ? TextDecoration
-                                                          .lineThrough
-                                                      : null,
-                                            ),
-                                          ),
-                                          subtitle: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              const SizedBox(height: 4),
-                                              Text(task.description),
-                                              const SizedBox(height: 4),
-                                              Row(
-                                                children: [
-                                                  Icon(Icons.access_time,
-                                                      size: 16,
-                                                      color: Colors.grey[600]),
-                                                  const SizedBox(width: 4),
-                                                  Text('${task.hours} hour(s)'),
-                                                  const SizedBox(width: 16),
-                                                  Container(
-                                                    padding: const EdgeInsets
-                                                        .symmetric(
-                                                        horizontal: 8,
-                                                        vertical: 2),
-                                                    decoration: BoxDecoration(
-                                                      color: task.status ==
-                                                              'completed'
-                                                          ? Colors.green[100]
-                                                          : Colors.orange[100],
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                              12),
-                                                    ),
-                                                    child: Text(
-                                                      task.status.toUpperCase(),
-                                                      style: TextStyle(
-                                                        fontSize: 12,
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                        color: task.status ==
-                                                                'completed'
-                                                            ? Colors.green[800]
-                                                            : Colors
-                                                                .orange[800],
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
-                                          trailing: const Icon(Icons.edit),
-                                          onTap: () => _showEditDialog(task),
-                                        ),
-                                      );
-                                    },
+                              child: ListTile(
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                                leading: CircleAvatar(
+                                  backgroundColor: task.status == 'completed'
+                                      ? Colors.green
+                                      : task.status == 'inprogress'
+                                      ? Colors.blue
+                                      : Colors.orange,
+                                  child: Icon(
+                                    task.status == 'completed'
+                                        ? Icons.check
+                                        : task.status == 'inprogress'
+                                        ? Icons.play_arrow
+                                        : Icons.pending,
+                                    color: Colors.white,
                                   ),
                                 ),
-                                // Pagination controls
-                                if (_totalPages > 1)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 8, horizontal: 16),
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey[100],
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
+                                title: Text(
+                                  task.title,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    decoration: task.status == 'completed'
+                                        ? TextDecoration.lineThrough
+                                        : null,
+                                  ),
+                                ),
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const SizedBox(height: 4),
+                                    Text(task.description),
+                                    const SizedBox(height: 4),
+                                    Row(
                                       children: [
-                                        IconButton(
-                                          icon: const Icon(
-                                              Icons.arrow_back_ios_new),
-                                          onPressed: _currentPage > 1
-                                              ? _previousPage
-                                              : null,
+                                        Icon(
+                                          Icons.access_time,
+                                          size: 16,
+                                          color: Colors.grey[600],
                                         ),
-                                        Text(
-                                          'Page $_currentPage of $_totalPages',
-                                          style: const TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.bold,
+                                        const SizedBox(width: 4),
+                                        Text('${task.hours} hour(s)'),
+                                        const SizedBox(width: 16),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 2,
                                           ),
-                                        ),
-                                        IconButton(
-                                          icon: const Icon(
-                                              Icons.arrow_forward_ios),
-                                          onPressed:
-                                              _currentPage < _totalPages
-                                                  ? _nextPage
-                                                  : null,
+                                          decoration: BoxDecoration(
+                                            color: task.status == 'completed'
+                                                ? Colors.green[100]
+                                                : task.status == 'inprogress'
+                                                ? Colors.blue[100]
+                                                : Colors.orange[100],
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            task.status == 'inprogress'
+                                                ? 'IN PROGRESS'
+                                                : task.status.toUpperCase(),
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                              color: task.status == 'completed'
+                                                  ? Colors.green[800]
+                                                  : task.status == 'inprogress'
+                                                  ? Colors.blue[800]
+                                                  : Colors.orange[800],
+                                            ),
+                                          ),
                                         ),
                                       ],
                                     ),
+                                  ],
+                                ),
+                                trailing: const Icon(Icons.edit),
+                                onTap: () => _showEditDialog(task),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      // Pagination controls
+                      if (_totalPages > 1)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 8,
+                              horizontal: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.grey[100],
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.arrow_back_ios_new),
+                                  onPressed: _currentPage > 1
+                                      ? _previousPage
+                                      : null,
+                                ),
+                                Text(
+                                  'Page $_currentPage of $_totalPages',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
                                   ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.arrow_forward_ios),
+                                  onPressed: _currentPage < _totalPages
+                                      ? _nextPage
+                                      : null,
+                                ),
                               ],
                             ),
-            ),
-          ],
+                          ),
+                        ),
+                    ],
+                  ),
+          ),
+        ],
+      ),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 40),
+        child: FloatingActionButton.extended(
+          onPressed: _showAddTaskDialog,
+          icon: const Icon(Icons.add),
+          label: const Text('Add Task'),
+          backgroundColor: Colors.deepPurple,
+          foregroundColor: Colors.white,
         ),
       ),
     );

@@ -114,4 +114,67 @@ class TaskService {
       throw Exception('An unexpected error occurred: $e');
     }
   }
+
+  // Create a new task
+  Future<Task> createTask(Task task) async {
+    try {
+      // Get token for authorization
+      final token = await _storageService.getToken();
+      print('DEBUG: token = ${token?.substring(0, 20)}...');
+      if (token == null) {
+        throw Exception('Token not found');
+      }
+
+      // Make the API call
+      final url = '/tasks';
+      print('DEBUG: Making API call to: $baseUrl$url');
+      print('DEBUG: Task data: ${task.toJson()}');
+
+      final response = await _dio.request(
+        url,
+        options: Options(
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json, text/plain, */*',
+            'Content-Type': 'application/json',
+          },
+        ),
+        data: task.toJson(),
+      );
+
+      print('DEBUG: Response status code: ${response.statusCode}');
+      print('DEBUG: Response data: ${response.data}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = response.data;
+
+        // The API returns {msg, task}
+        if (data is Map<String, dynamic> && data['task'] != null) {
+          return Task.fromJson(data['task']);
+        } else {
+          throw Exception('Invalid response format');
+        }
+      } else {
+        throw Exception('Failed to create task: ${response.statusMessage}');
+      }
+    } on DioException catch (e) {
+      print('DEBUG: DioException caught');
+      print('DEBUG: Error type: ${e.type}');
+      print('DEBUG: Error message: ${e.message}');
+      print('DEBUG: Response: ${e.response?.data}');
+
+      if (e.response != null) {
+        final message = e.response?.data['message'] ??
+            e.response?.data['msg'] ??
+            'Failed to create task';
+        throw Exception(message);
+      } else {
+        throw Exception('Network error. Please check your connection.');
+      }
+    } catch (e) {
+      print('DEBUG: General exception: $e');
+      throw Exception('An unexpected error occurred: $e');
+    }
+  }
 }

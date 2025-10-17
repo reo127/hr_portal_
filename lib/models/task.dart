@@ -3,7 +3,17 @@ class Task {
   final String title;
   final String description;
   final int hours;
-  final String status; // 'pending' or 'completed'
+  final String status;
+  final String? date;
+  final String? userId;
+  final String? employeeName;
+  final String? reason;
+  final String? details;
+  final bool? isHoliday;
+  final String? holidayName;
+  final bool? onLeave;
+  final String? leaveType;
+  final String? resourceStatus;
 
   Task({
     required this.id,
@@ -11,6 +21,16 @@ class Task {
     required this.description,
     required this.hours,
     this.status = 'pending',
+    this.date,
+    this.userId,
+    this.employeeName,
+    this.reason,
+    this.details,
+    this.isHoliday,
+    this.holidayName,
+    this.onLeave,
+    this.leaveType,
+    this.resourceStatus,
   });
 
   factory Task.fromJson(Map<String, dynamic> json) {
@@ -32,16 +52,35 @@ class Task {
       description: json['summary'] ?? '',
       hours: hoursValue,
       status: json['status'] ?? 'pending',
+      date: json['date'],
+      userId: json['userId'],
+      employeeName: json['employeeName'],
+      reason: json['reason'] ?? '',
+      details: json['details'] ?? '',
+      isHoliday: json['isHoliday'] ?? false,
+      holidayName: json['holidayName'] ?? '',
+      onLeave: json['onLeave'] ?? false,
+      leaveType: json['LeaveType'] ?? '',
+      resourceStatus: json['resourceStatus'] ?? 'benchresource',
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      '_id': id,
-      'title': title,
-      'description': description,
+      'task': title,
+      'summary': description,
       'hours': hours,
       'status': status,
+      'date': date ?? '',
+      'userId': userId ?? '',
+      'employeeName': employeeName ?? '',
+      'reason': reason ?? '',
+      'details': details ?? '',
+      'isHoliday': isHoliday ?? false,
+      'holidayName': holidayName ?? '',
+      'onLeave': onLeave ?? false,
+      'LeaveType': leaveType ?? '',
+      'resourceStatus': resourceStatus ?? 'benchresource',
     };
   }
 
@@ -51,6 +90,16 @@ class Task {
     String? description,
     int? hours,
     String? status,
+    String? date,
+    String? userId,
+    String? employeeName,
+    String? reason,
+    String? details,
+    bool? isHoliday,
+    String? holidayName,
+    bool? onLeave,
+    String? leaveType,
+    String? resourceStatus,
   }) {
     return Task(
       id: id ?? this.id,
@@ -58,6 +107,16 @@ class Task {
       description: description ?? this.description,
       hours: hours ?? this.hours,
       status: status ?? this.status,
+      date: date ?? this.date,
+      userId: userId ?? this.userId,
+      employeeName: employeeName ?? this.employeeName,
+      reason: reason ?? this.reason,
+      details: details ?? this.details,
+      isHoliday: isHoliday ?? this.isHoliday,
+      holidayName: holidayName ?? this.holidayName,
+      onLeave: onLeave ?? this.onLeave,
+      leaveType: leaveType ?? this.leaveType,
+      resourceStatus: resourceStatus ?? this.resourceStatus,
     );
   }
 }
