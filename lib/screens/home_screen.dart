@@ -289,10 +289,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   items: const [
                     DropdownMenuItem(value: 'pending', child: Text('Pending')),
-                    DropdownMenuItem(
-                      value: 'completed',
-                      child: Text('Completed'),
-                    ),
+                    DropdownMenuItem(value: 'inprogress', child: Text('In Progress')),
+                    DropdownMenuItem(value: 'completed', child: Text('Completed')),
                   ],
                   onChanged: (value) {
                     setDialogState(() {
@@ -309,23 +307,44 @@ class _HomeScreenState extends State<HomeScreen> {
               child: const Text('Cancel'),
             ),
             ElevatedButton(
-              onPressed: () {
-                setState(() {
-                  final index = _tasks.indexWhere((t) => t.id == task.id);
-                  if (index != -1) {
-                    _tasks[index] = Task(
-                      id: task.id,
-                      title: titleController.text,
-                      description: descriptionController.text,
-                      hours: int.tryParse(hoursController.text) ?? task.hours,
-                      status: status,
+              onPressed: () async {
+                final nav = Navigator.of(context);
+                final messenger = ScaffoldMessenger.of(context);
+
+                try {
+                  // Create updated task with all existing fields
+                  final updatedTask = task.copyWith(
+                    title: titleController.text,
+                    description: descriptionController.text,
+                    hours: int.tryParse(hoursController.text) ?? task.hours,
+                    status: status,
+                  );
+
+                  // Call API to update task
+                  await _taskService.updateTask(updatedTask);
+
+                  // Refresh tasks list
+                  await _fetchTasks();
+
+                  if (mounted) {
+                    nav.pop();
+                    messenger.showSnackBar(
+                      const SnackBar(content: Text('Task updated successfully!')),
                     );
                   }
-                });
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Task updated successfully!')),
-                );
+                } catch (e) {
+                  if (mounted) {
+                    nav.pop();
+                    messenger.showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Failed to update task: ${e.toString().replaceFirst('Exception: ', '')}',
+                        ),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
               },
               child: const Text('Save'),
             ),
@@ -694,11 +713,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                                 title: Text(
                                   task.title,
-                                  style: TextStyle(
+                                  style: const TextStyle(
                                     fontWeight: FontWeight.bold,
-                                    decoration: task.status == 'completed'
-                                        ? TextDecoration.lineThrough
-                                        : null,
                                   ),
                                 ),
                                 subtitle: Column(
