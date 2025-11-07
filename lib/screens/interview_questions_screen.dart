@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../widgets/app_drawer.dart';
 import '../services/interview_service.dart';
 import '../models/interview_stats.dart';
 import '../models/interview.dart';
+import '../providers/auth_provider.dart';
 import 'package:intl/intl.dart';
 
 class InterviewQuestionsScreen extends StatefulWidget {
@@ -68,9 +70,22 @@ class _InterviewQuestionsScreenState extends State<InterviewQuestionsScreen> {
         search: _searchQuery,
       );
 
+      final interviews = interviewsData['interviews'] as List<Interview>;
+
+      // Sort by createdAt descending (newest first)
+      interviews.sort((a, b) {
+        try {
+          final dateA = DateTime.parse(a.createdAt);
+          final dateB = DateTime.parse(b.createdAt);
+          return dateB.compareTo(dateA); // Descending order
+        } catch (e) {
+          return 0;
+        }
+      });
+
       setState(() {
         _stats = stats;
-        _interviews = interviewsData['interviews'] as List<Interview>;
+        _interviews = interviews;
         _pagination = interviewsData['pagination'] as InterviewPagination;
         _isLoading = false;
       });
@@ -93,8 +108,21 @@ class _InterviewQuestionsScreenState extends State<InterviewQuestionsScreen> {
         search: _searchQuery,
       );
 
+      final interviews = interviewsData['interviews'] as List<Interview>;
+
+      // Sort by createdAt descending (newest first)
+      interviews.sort((a, b) {
+        try {
+          final dateA = DateTime.parse(a.createdAt);
+          final dateB = DateTime.parse(b.createdAt);
+          return dateB.compareTo(dateA); // Descending order
+        } catch (e) {
+          return 0;
+        }
+      });
+
       setState(() {
-        _interviews = interviewsData['interviews'] as List<Interview>;
+        _interviews = interviews;
         _pagination = interviewsData['pagination'] as InterviewPagination;
         _isLoadingInterviews = false;
       });
@@ -125,32 +153,228 @@ class _InterviewQuestionsScreenState extends State<InterviewQuestionsScreen> {
   }
 
   void _showAddInterviewDialog() {
+    final formKey = GlobalKey<FormState>();
+    final employeeNameController = TextEditingController();
+    final clientNameController = TextEditingController();
+    final jobRoleController = TextEditingController();
+    final questionsController = TextEditingController();
+    DateTime selectedDate = DateTime.now();
+    String selectedStatus = 'not_available';
+    bool isSaving = false;
+
     showDialog(
       context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Add New Interview'),
-          content: const SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('Interview form will be implemented here.'),
+      builder: (BuildContext dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Add New Interview'),
+              content: SingleChildScrollView(
+                child: Form(
+                  key: formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TextFormField(
+                        controller: employeeNameController,
+                        decoration: const InputDecoration(
+                          labelText: 'Employee Name',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter employee name';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: clientNameController,
+                        decoration: const InputDecoration(
+                          labelText: 'Client Name',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter client name';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: jobRoleController,
+                        decoration: const InputDecoration(
+                          labelText: 'Job Role',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter job role';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      InkWell(
+                        onTap: () async {
+                          final DateTime? picked = await showDatePicker(
+                            context: context,
+                            initialDate: selectedDate,
+                            firstDate: DateTime(2000),
+                            lastDate: DateTime(2100),
+                          );
+                          if (picked != null && picked != selectedDate) {
+                            setState(() {
+                              selectedDate = picked;
+                            });
+                          }
+                        },
+                        child: InputDecorator(
+                          decoration: const InputDecoration(
+                            labelText: 'Date',
+                            border: OutlineInputBorder(),
+                            suffixIcon: Icon(Icons.calendar_today),
+                          ),
+                          child: Text(
+                            DateFormat('yyyy-MM-dd').format(selectedDate),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<String>(
+                        value: selectedStatus,
+                        decoration: const InputDecoration(
+                          labelText: 'Status',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'not_available',
+                            child: Text('Not Available'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'accepted',
+                            child: Text('Accepted'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'rejected',
+                            child: Text('Rejected'),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          if (value != null) {
+                            setState(() {
+                              selectedStatus = value;
+                            });
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: questionsController,
+                        decoration: const InputDecoration(
+                          labelText: 'Questions',
+                          border: OutlineInputBorder(),
+                          alignLabelWithHint: true,
+                        ),
+                        maxLines: 5,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter questions';
+                          }
+                          return null;
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSaving
+                      ? null
+                      : () {
+                          Navigator.of(dialogContext).pop();
+                        },
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: isSaving
+                      ? null
+                      : () async {
+                          if (formKey.currentState!.validate()) {
+                            setState(() {
+                              isSaving = true;
+                            });
+
+                            try {
+                              final authProvider = Provider.of<AuthProvider>(
+                                this.context,
+                                listen: false,
+                              );
+                              final userId = authProvider.user?.userId;
+
+                              if (userId == null) {
+                                throw Exception('User not found');
+                              }
+
+                              await _interviewService.createInterview(
+                                employeeName: employeeNameController.text,
+                                date: DateFormat('yyyy-MM-dd').format(selectedDate),
+                                userId: userId,
+                                clientName: clientNameController.text,
+                                jobRole: jobRoleController.text,
+                                questions: questionsController.text,
+                                status: selectedStatus,
+                              );
+
+                              if (dialogContext.mounted) {
+                                Navigator.of(dialogContext).pop();
+                              }
+
+                              // Reload data to show new interview
+                              _loadData();
+
+                              if (mounted) {
+                                ScaffoldMessenger.of(this.context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Interview added successfully'),
+                                    backgroundColor: Colors.green,
+                                  ),
+                                );
+                              }
+                            } catch (e) {
+                              setState(() {
+                                isSaving = false;
+                              });
+
+                              if (dialogContext.mounted) {
+                                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      e.toString().replaceAll('Exception: ', ''),
+                                    ),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                            }
+                          }
+                        },
+                  child: isSaving
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Save'),
+                ),
               ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                // TODO: Implement save functionality
-                Navigator.of(context).pop();
-              },
-              child: const Text('Save'),
-            ),
-          ],
+            );
+          },
         );
       },
     );
