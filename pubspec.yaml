@@ -47,6 +47,9 @@ dependencies:
   # JWT decoder to extract token expiry
   jwt_decoder: ^2.0.1
 
+  # Date formatting
+  intl: ^0.19.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
