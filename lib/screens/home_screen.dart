@@ -18,7 +18,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _hoursController = TextEditingController();
-  int _selectedMinutes = 15; // Default minutes
+  int _selectedMinutes = 0; // Default minutes
   DateTime _selectedDate = DateTime.now();
   String _selectedStatus = 'inprogress';
 
@@ -175,7 +175,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _titleController.clear();
         _descriptionController.clear();
         _hoursController.clear();
-        _selectedMinutes = 15;
+        _selectedMinutes = 0;
         _selectedDate = DateTime.now();
         _selectedStatus = 'inprogress';
 
@@ -209,10 +209,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showEditDialog(Task task) {
+    final formKey = GlobalKey<FormState>();
     final titleController = TextEditingController(text: task.title);
     final descriptionController = TextEditingController(text: task.description);
     final hoursController = TextEditingController(text: task.hours.toString());
-    int selectedMinutes = 15;
+    final detailsController = TextEditingController(text: task.details ?? '');
+    int selectedMinutes = 0;
     String status = task.status;
 
     showDialog(
@@ -221,42 +223,65 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (context, setDialogState) => AlertDialog(
           title: const Text('Edit Task'),
           content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: titleController,
-                  decoration: const InputDecoration(
-                    labelText: 'Title',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: descriptionController,
-                  decoration: const InputDecoration(
-                    labelText: 'Description',
-                    border: OutlineInputBorder(),
-                  ),
-                  maxLines: 3,
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      flex: 2,
-                      child: TextField(
-                        controller: hoursController,
-                        decoration: const InputDecoration(
-                          labelText: 'Hours',
-                          border: OutlineInputBorder(),
-                        ),
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
-                        ],
-                      ),
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: titleController,
+                    decoration: const InputDecoration(
+                      labelText: 'Title',
+                      border: OutlineInputBorder(),
                     ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Title is required';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: descriptionController,
+                    decoration: const InputDecoration(
+                      labelText: 'Description',
+                      border: OutlineInputBorder(),
+                    ),
+                    maxLines: 3,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Description is required';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: TextFormField(
+                          controller: hoursController,
+                          decoration: const InputDecoration(
+                            labelText: 'Hours',
+                            border: OutlineInputBorder(),
+                          ),
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Hours is required';
+                            }
+                            if (int.tryParse(value) == null) {
+                              return 'Invalid number';
+                            }
+                            return null;
+                          },
+                        ),
+                      ),
                     const SizedBox(width: 8),
                     Expanded(
                       flex: 2,
@@ -267,6 +292,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           border: OutlineInputBorder(),
                         ),
                         items: const [
+                          DropdownMenuItem(value: 0, child: Text('00')),
                           DropdownMenuItem(value: 15, child: Text('15')),
                           DropdownMenuItem(value: 30, child: Text('30')),
                           DropdownMenuItem(value: 45, child: Text('45')),
@@ -298,7 +324,23 @@ class _HomeScreenState extends State<HomeScreen> {
                     });
                   },
                 ),
-              ],
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: detailsController,
+                    decoration: const InputDecoration(
+                      labelText: 'Details',
+                      border: OutlineInputBorder(),
+                    ),
+                    maxLines: 3,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Details is required';
+                      }
+                      return null;
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
           actions: [
@@ -308,16 +350,21 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             ElevatedButton(
               onPressed: () async {
+                if (!formKey.currentState!.validate()) {
+                  return;
+                }
+
                 final nav = Navigator.of(context);
                 final messenger = ScaffoldMessenger.of(context);
 
                 try {
                   // Create updated task with all existing fields
                   final updatedTask = task.copyWith(
-                    title: titleController.text,
-                    description: descriptionController.text,
+                    title: titleController.text.trim(),
+                    description: descriptionController.text.trim(),
                     hours: int.tryParse(hoursController.text) ?? task.hours,
                     status: status,
+                    details: detailsController.text.trim(),
                   );
 
                   // Call API to update task
@@ -461,6 +508,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           isDense: true,
                         ),
                         items: const [
+                          DropdownMenuItem(value: 0, child: Text('00')),
                           DropdownMenuItem(value: 15, child: Text('15')),
                           DropdownMenuItem(value: 30, child: Text('30')),
                           DropdownMenuItem(value: 45, child: Text('45')),
@@ -657,44 +705,60 @@ class _HomeScreenState extends State<HomeScreen> {
                                     Row(
                                       children: [
                                         Icon(
+                                          Icons.calendar_today,
+                                          size: 16,
+                                          color: Colors.grey[600],
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          task.date != null
+                                              ? task.date!.split('T')[0]
+                                              : 'No date',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey[700],
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Icon(
                                           Icons.access_time,
                                           size: 16,
                                           color: Colors.grey[600],
                                         ),
                                         const SizedBox(width: 4),
-                                        Text('${task.hours} hour(s)'),
-                                        const SizedBox(width: 16),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 2,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: task.status == 'completed'
-                                                ? Colors.green[100]
-                                                : task.status == 'inprogress'
-                                                ? Colors.blue[100]
-                                                : Colors.orange[100],
-                                            borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            task.status == 'inprogress'
-                                                ? 'IN PROGRESS'
-                                                : task.status.toUpperCase(),
-                                            style: TextStyle(
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.bold,
-                                              color: task.status == 'completed'
-                                                  ? Colors.green[800]
-                                                  : task.status == 'inprogress'
-                                                  ? Colors.blue[800]
-                                                  : Colors.orange[800],
-                                            ),
-                                          ),
-                                        ),
+                                        Text('${task.hours}h'),
                                       ],
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: task.status == 'completed'
+                                            ? Colors.green[100]
+                                            : task.status == 'inprogress'
+                                            ? Colors.blue[100]
+                                            : Colors.orange[100],
+                                        borderRadius: BorderRadius.circular(
+                                          12,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        task.status == 'inprogress'
+                                            ? 'IN PROGRESS'
+                                            : task.status.toUpperCase(),
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          color: task.status == 'completed'
+                                              ? Colors.green[800]
+                                              : task.status == 'inprogress'
+                                              ? Colors.blue[800]
+                                              : Colors.orange[800],
+                                        ),
+                                      ),
                                     ),
                                   ],
                                 ),
