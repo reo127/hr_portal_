@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import '../models/task.dart';
 import '../providers/auth_provider.dart';
 import '../services/task_service.dart';
@@ -25,19 +26,106 @@ class _HomeScreenState extends State<HomeScreen> {
   final List<Task> _tasks = [];
   final TaskService _taskService = TaskService();
 
-  // Pagination state
-  int _currentPage = 1;
-  final int _limit = 10;
-  int _totalTasks = 0;
-  int _totalPages = 0;
-  bool _hasMore = false;
+  // Week-based navigation state
+  late DateTime _currentWeekStart;
+  late DateTime _currentWeekEnd;
+  Map<String, List<Task>> _tasksByDay = {};
   bool _isLoading = false;
   String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
+    _calculateCurrentWeek();
     _fetchTasks();
+  }
+
+  // Calculate the current week (Monday to Saturday)
+  void _calculateCurrentWeek() {
+    final now = DateTime.now();
+    final weekday = now.weekday; // 1 = Monday, 7 = Sunday
+
+    print('DEBUG: Today is $now, weekday: $weekday');
+
+    // Calculate Monday of current week
+    _currentWeekStart = now.subtract(Duration(days: weekday - 1));
+    print('DEBUG: Before normalization - Start: $_currentWeekStart');
+
+    // Calculate Saturday of current week (Monday + 5 days)
+    _currentWeekEnd = _currentWeekStart.add(const Duration(days: 5));
+    print('DEBUG: Before normalization - End: $_currentWeekEnd');
+
+    // Normalize to start of day
+    _currentWeekStart = DateTime(_currentWeekStart.year, _currentWeekStart.month, _currentWeekStart.day);
+    _currentWeekEnd = DateTime(_currentWeekEnd.year, _currentWeekEnd.month, _currentWeekEnd.day);
+
+    print('DEBUG: After normalization - Start: $_currentWeekStart (${DateFormat('EEEE').format(_currentWeekStart)})');
+    print('DEBUG: After normalization - End: $_currentWeekEnd (${DateFormat('EEEE').format(_currentWeekEnd)})');
+    print('DEBUG: Week range text: ${_getWeekRangeText()}');
+  }
+
+  // Go to previous week
+  void _previousWeek() {
+    setState(() {
+      _currentWeekStart = _currentWeekStart.subtract(const Duration(days: 7));
+      _currentWeekEnd = _currentWeekEnd.subtract(const Duration(days: 7));
+    });
+    _fetchTasks();
+  }
+
+  // Go to next week
+  void _nextWeek() {
+    setState(() {
+      _currentWeekStart = _currentWeekStart.add(const Duration(days: 7));
+      _currentWeekEnd = _currentWeekEnd.add(const Duration(days: 7));
+    });
+    _fetchTasks();
+  }
+
+  // Format week range for display
+  String _getWeekRangeText() {
+    final dateFormat = DateFormat('MMM dd');
+    return '${dateFormat.format(_currentWeekStart)} - ${dateFormat.format(_currentWeekEnd)}';
+  }
+
+  // Group tasks by day
+  void _groupTasksByDay(List<Task> tasks) {
+    _tasksByDay.clear();
+
+    print('DEBUG: Grouping ${tasks.length} tasks');
+    print('DEBUG: Week range: $_currentWeekStart to $_currentWeekEnd');
+
+    // Initialize all days (Mon-Sat) with empty lists
+    for (int i = 0; i < 6; i++) {
+      final day = _currentWeekStart.add(Duration(days: i));
+      final dayKey = DateFormat('yyyy-MM-dd').format(day);
+      _tasksByDay[dayKey] = [];
+      print('DEBUG: Initialized day key: $dayKey');
+    }
+
+    // Group tasks by their date
+    for (var task in tasks) {
+      if (task.date != null) {
+        try {
+          final taskDateStr = task.date!.split('T')[0]; // Get YYYY-MM-DD part
+          print('DEBUG: Task "${task.title}" has date: $taskDateStr');
+
+          if (_tasksByDay.containsKey(taskDateStr)) {
+            _tasksByDay[taskDateStr]!.add(task);
+            print('DEBUG: Added task to $taskDateStr (now has ${_tasksByDay[taskDateStr]!.length} tasks)');
+          } else {
+            print('DEBUG: Task date $taskDateStr not in current week keys: ${_tasksByDay.keys.toList()}');
+          }
+        } catch (e) {
+          print('DEBUG: Error parsing task date: ${task.date}');
+        }
+      }
+    }
+
+    print('DEBUG: Final grouping - ${_tasksByDay.length} days:');
+    _tasksByDay.forEach((key, value) {
+      print('DEBUG:   $key: ${value.length} tasks');
+    });
   }
 
   @override
@@ -48,19 +136,19 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  // Fetch tasks from API
+  // Fetch tasks from API for the current week
   Future<void> _fetchTasks() async {
-    print('DEBUG HomeScreen: _fetchTasks called');
+    print('DEBUG HomeScreen: _fetchTasks called for week $_currentWeekStart to $_currentWeekEnd');
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
 
     try {
-      print('DEBUG HomeScreen: Calling taskService.getTasks');
+      print('DEBUG HomeScreen: Calling taskService.getTasks with date range');
       final result = await _taskService.getTasks(
-        page: _currentPage,
-        limit: _limit,
+        startDate: _currentWeekStart,
+        endDate: _currentWeekEnd,
       );
 
       print('DEBUG HomeScreen: Result received: $result');
@@ -68,9 +156,7 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         _tasks.clear();
         _tasks.addAll(result['tasks'] as List<Task>);
-        _totalTasks = result['total'];
-        _totalPages = result['totalPages'];
-        _hasMore = result['hasMore'];
+        _groupTasksByDay(_tasks);
         _isLoading = false;
       });
 
@@ -81,26 +167,6 @@ class _HomeScreenState extends State<HomeScreen> {
         _errorMessage = e.toString().replaceFirst('Exception: ', '');
         _isLoading = false;
       });
-    }
-  }
-
-  // Go to next page
-  void _nextPage() {
-    if (_currentPage < _totalPages) {
-      setState(() {
-        _currentPage++;
-      });
-      _fetchTasks();
-    }
-  }
-
-  // Go to previous page
-  void _previousPage() {
-    if (_currentPage > 1) {
-      setState(() {
-        _currentPage--;
-      });
-      _fetchTasks();
     }
   }
 
@@ -605,211 +671,278 @@ class _HomeScreenState extends State<HomeScreen> {
       drawer: const AppDrawer(currentRoute: 'tasks'),
       body: Column(
         children: [
-          Padding(
+          // Week navigation header
+          Container(
             padding: const EdgeInsets.all(16.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
+              border: Border(
+                bottom: BorderSide(color: Colors.grey[300]!, width: 1),
+              ),
+            ),
+            child: Column(
               children: [
-                const Text(
-                  'Your Tasks',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Your Tasks',
+                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      '${_tasks.length} tasks',
+                      style: const TextStyle(fontSize: 14, color: Colors.grey),
+                    ),
+                  ],
                 ),
-                Text(
-                  '$_totalTasks tasks',
-                  style: const TextStyle(fontSize: 14, color: Colors.grey),
+                const SizedBox(height: 12),
+                // Week navigation controls
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back_ios_new),
+                      onPressed: _previousWeek,
+                      tooltip: 'Previous Week',
+                    ),
+                    Column(
+                      children: [
+                        Text(
+                          _getWeekRangeText(),
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Mon - Sat',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.arrow_forward_ios),
+                      onPressed: _nextWeek,
+                      tooltip: 'Next Week',
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-          const Divider(height: 1),
+          // Task list
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _errorMessage != null
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.error_outline,
-                          size: 48,
-                          color: Colors.red,
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.error_outline,
+                              size: 48,
+                              color: Colors.red,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              _errorMessage!,
+                              style: const TextStyle(color: Colors.red),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 16),
+                            ElevatedButton(
+                              onPressed: _fetchTasks,
+                              child: const Text('Retry'),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 16),
-                        Text(
-                          _errorMessage!,
-                          style: const TextStyle(color: Colors.red),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: _fetchTasks,
-                          child: const Text('Retry'),
-                        ),
-                      ],
-                    ),
-                  )
-                : _tasks.isEmpty
-                ? const Center(
-                    child: Text(
-                      'No tasks found.',
-                      style: TextStyle(fontSize: 16, color: Colors.grey),
-                    ),
-                  )
-                : Column(
-                    children: [
-                      Expanded(
-                        child: ListView.builder(
-                          padding: const EdgeInsets.all(16),
-                          itemCount: _tasks.length,
-                          itemBuilder: (context, index) {
-                            final task = _tasks[index];
-                            return Card(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              elevation: 1,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: ListTile(
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 8,
-                                ),
-                                leading: CircleAvatar(
-                                  backgroundColor: task.status == 'completed'
-                                      ? Colors.green
-                                      : task.status == 'inprogress'
-                                      ? Colors.blue
-                                      : Colors.orange,
-                                  child: Icon(
-                                    task.status == 'completed'
-                                        ? Icons.check
-                                        : task.status == 'inprogress'
-                                        ? Icons.play_arrow
-                                        : Icons.pending,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                title: Text(
-                                  task.title,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                subtitle: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: _tasksByDay.length,
+                        itemBuilder: (context, index) {
+                          final dayDate = _currentWeekStart.add(Duration(days: index));
+                          final dayKey = DateFormat('yyyy-MM-dd').format(dayDate);
+                          final dayTasks = _tasksByDay[dayKey] ?? [];
+
+                          // Format day as "Nov 14 Friday"
+                          final dayHeader = DateFormat('MMM dd EEEE').format(dayDate);
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Day header
+                              Padding(
+                                padding: EdgeInsets.only(bottom: 8, top: index == 0 ? 0 : 16),
+                                child: Row(
                                   children: [
-                                    const SizedBox(height: 4),
-                                    Text(task.description),
-                                    const SizedBox(height: 4),
-                                    Row(
-                                      children: [
-                                        Icon(
-                                          Icons.calendar_today,
-                                          size: 16,
-                                          color: Colors.grey[600],
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          task.date != null
-                                              ? task.date!.split('T')[0]
-                                              : 'No date',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.grey[700],
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Icon(
-                                          Icons.access_time,
-                                          size: 16,
-                                          color: Colors.grey[600],
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text('${task.hours}h'),
-                                      ],
+                                    Container(
+                                      width: 4,
+                                      height: 24,
+                                      decoration: BoxDecoration(
+                                        color: Colors.deepPurple,
+                                        borderRadius: BorderRadius.circular(2),
+                                      ),
                                     ),
-                                    const SizedBox(height: 6),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      dayHeader,
+                                      style: const TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
                                     Container(
                                       padding: const EdgeInsets.symmetric(
                                         horizontal: 8,
                                         vertical: 2,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: task.status == 'completed'
-                                            ? Colors.green[100]
-                                            : task.status == 'inprogress'
-                                            ? Colors.blue[100]
-                                            : Colors.orange[100],
-                                        borderRadius: BorderRadius.circular(
-                                          12,
-                                        ),
+                                        color: dayTasks.isEmpty
+                                            ? Colors.grey[200]
+                                            : Colors.deepPurple[50],
+                                        borderRadius: BorderRadius.circular(12),
                                       ),
                                       child: Text(
-                                        task.status == 'inprogress'
-                                            ? 'IN PROGRESS'
-                                            : task.status.toUpperCase(),
+                                        '${dayTasks.length}',
                                         style: TextStyle(
-                                          fontSize: 10,
+                                          fontSize: 12,
                                           fontWeight: FontWeight.bold,
-                                          color: task.status == 'completed'
-                                              ? Colors.green[800]
-                                              : task.status == 'inprogress'
-                                              ? Colors.blue[800]
-                                              : Colors.orange[800],
+                                          color: dayTasks.isEmpty
+                                              ? Colors.grey[600]
+                                              : Colors.deepPurple[700],
                                         ),
                                       ),
                                     ),
                                   ],
                                 ),
-                                trailing: const Icon(Icons.edit),
-                                onTap: () => _showEditDialog(task),
                               ),
-                            );
-                          },
-                        ),
-                      ),
-                      // Pagination controls
-                      if (_totalPages > 1)
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 8,
-                              horizontal: 12,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[100],
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                IconButton(
-                                  icon: const Icon(Icons.arrow_back_ios_new),
-                                  onPressed: _currentPage > 1
-                                      ? _previousPage
-                                      : null,
-                                ),
-                                Text(
-                                  'Page $_currentPage of $_totalPages',
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
+                              // Tasks for this day or empty state
+                              if (dayTasks.isEmpty)
+                                Container(
+                                  padding: const EdgeInsets.all(16),
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[100],
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: Colors.grey[300]!),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.event_available, color: Colors.grey[400], size: 20),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'No tasks scheduled',
+                                        style: TextStyle(
+                                          color: Colors.grey[600],
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              else
+                                ...dayTasks.map((task) => Card(
+                                    margin: const EdgeInsets.only(bottom: 8),
+                                    elevation: 1,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: ListTile(
+                                      contentPadding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 8,
+                                      ),
+                                      leading: CircleAvatar(
+                                        backgroundColor: task.status == 'completed'
+                                            ? Colors.green
+                                            : task.status == 'inprogress'
+                                                ? Colors.blue
+                                                : Colors.orange,
+                                        child: Icon(
+                                          task.status == 'completed'
+                                              ? Icons.check
+                                              : task.status == 'inprogress'
+                                                  ? Icons.play_arrow
+                                                  : Icons.pending,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                      title: Text(
+                                        task.title,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      subtitle: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          const SizedBox(height: 4),
+                                          Text(task.description),
+                                          const SizedBox(height: 8),
+                                          Row(
+                                            children: [
+                                              Icon(
+                                                Icons.access_time,
+                                                size: 16,
+                                                color: Colors.grey[600],
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                '${task.hours}h',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.grey[700],
+                                                ),
+                                              ),
+                                              const SizedBox(width: 16),
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(
+                                                  horizontal: 8,
+                                                  vertical: 2,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: task.status == 'completed'
+                                                      ? Colors.green[100]
+                                                      : task.status == 'inprogress'
+                                                          ? Colors.blue[100]
+                                                          : Colors.orange[100],
+                                                  borderRadius: BorderRadius.circular(12),
+                                                ),
+                                                child: Text(
+                                                  task.status == 'inprogress'
+                                                      ? 'IN PROGRESS'
+                                                      : task.status.toUpperCase(),
+                                                  style: TextStyle(
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: task.status == 'completed'
+                                                        ? Colors.green[800]
+                                                        : task.status == 'inprogress'
+                                                            ? Colors.blue[800]
+                                                            : Colors.orange[800],
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                      trailing: const Icon(Icons.edit),
+                                      onTap: () => _showEditDialog(task),
+                                    ),
                                   ),
                                 ),
-                                IconButton(
-                                  icon: const Icon(Icons.arrow_forward_ios),
-                                  onPressed: _currentPage < _totalPages
-                                      ? _nextPage
-                                      : null,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
+                            ],
+                          );
+                        },
+                      ),
           ),
         ],
       ),

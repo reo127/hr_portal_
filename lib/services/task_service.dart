@@ -19,10 +19,10 @@ class TaskService {
           },
         ));
 
-  // Get all tasks for the current user with pagination
+  // Get all tasks for the current user with date range filtering
   Future<Map<String, dynamic>> getTasks({
-    int page = 1,
-    int limit = 5,
+    DateTime? startDate,
+    DateTime? endDate,
   }) async {
     try {
       // Get user ID from storage
@@ -72,25 +72,34 @@ class TaskService {
 
         print('DEBUG: Total tasks parsed: ${allTasks.length}');
 
-        // Implement client-side pagination
-        final totalTasks = allTasks.length;
-        final startIndex = (page - 1) * limit;
-        final endIndex = startIndex + limit;
+        // Filter tasks by date range if provided
+        List<Task> filteredTasks = allTasks;
+        if (startDate != null && endDate != null) {
+          filteredTasks = allTasks.where((task) {
+            if (task.date == null) return false;
 
-        final paginatedTasks = allTasks.sublist(
-          startIndex,
-          endIndex > totalTasks ? totalTasks : endIndex,
-        );
+            try {
+              // Parse task date (format: YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss)
+              final taskDate = DateTime.parse(task.date!.split('T')[0]);
 
-        print('DEBUG: Returning ${paginatedTasks.length} tasks for page $page');
+              // Check if task date is within the range (inclusive: startDate <= taskDate <= endDate)
+              final isAfterOrEqualStart = !taskDate.isBefore(startDate);
+              final isBeforeOrEqualEnd = !taskDate.isAfter(endDate);
+
+              print('DEBUG: Task ${task.title} date: $taskDate, inRange: ${isAfterOrEqualStart && isBeforeOrEqualEnd}');
+              return isAfterOrEqualStart && isBeforeOrEqualEnd;
+            } catch (e) {
+              print('DEBUG: Error parsing date for task ${task.id}: ${task.date}');
+              return false;
+            }
+          }).toList();
+
+          print('DEBUG: Filtered ${filteredTasks.length} tasks for date range $startDate to $endDate from ${allTasks.length} total tasks');
+        }
 
         return {
-          'tasks': paginatedTasks,
-          'total': totalTasks,
-          'page': page,
-          'limit': limit,
-          'totalPages': (totalTasks / limit).ceil(),
-          'hasMore': endIndex < totalTasks,
+          'tasks': filteredTasks,
+          'total': filteredTasks.length,
         };
       } else {
         throw Exception('Failed to fetch tasks: ${response.statusMessage}');
