@@ -791,7 +791,7 @@ class _InterviewQuestionsScreenState extends State<InterviewQuestionsScreen> {
                                             ),
                                           ),
                                           title: Text(
-                                            interview.jobRole,
+                                            interview.employeeName,
                                             style: const TextStyle(
                                               fontWeight: FontWeight.bold,
                                             ),
@@ -802,7 +802,7 @@ class _InterviewQuestionsScreenState extends State<InterviewQuestionsScreen> {
                                             children: [
                                               const SizedBox(height: 4),
                                               Text(
-                                                '${interview.clientName} • $formattedDate',
+                                                interview.jobRole,
                                                 style: TextStyle(
                                                   fontSize: 13,
                                                   color: Colors.grey[600],
@@ -810,7 +810,15 @@ class _InterviewQuestionsScreenState extends State<InterviewQuestionsScreen> {
                                               ),
                                               const SizedBox(height: 2),
                                               Text(
-                                                interview.employeeName,
+                                                interview.clientName,
+                                                style: TextStyle(
+                                                  fontSize: 13,
+                                                  color: Colors.grey[600],
+                                                ),
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                formattedDate,
                                                 style: TextStyle(
                                                   fontSize: 13,
                                                   color: Colors.grey[600],
