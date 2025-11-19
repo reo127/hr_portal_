@@ -276,18 +276,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _showEditDialog(Task task) {
     final formKey = GlobalKey<FormState>();
+    final isLeaveTask = task.onLeave == true;
     final titleController = TextEditingController(text: task.title);
     final descriptionController = TextEditingController(text: task.description);
     final hoursController = TextEditingController(text: task.hours.toString());
     final detailsController = TextEditingController(text: task.details ?? '');
     int selectedMinutes = 0;
-    String status = task.status;
+    String status = isLeaveTask ? 'leave' : task.status;
 
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Edit Task'),
+          title: Text(isLeaveTask ? 'Edit Leave' : 'Edit Task'),
           content: SingleChildScrollView(
             child: Form(
               key: formKey,
@@ -296,6 +297,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   TextFormField(
                     controller: titleController,
+                    enabled: !isLeaveTask,
                     decoration: const InputDecoration(
                       labelText: 'Title',
                       border: OutlineInputBorder(),
@@ -310,6 +312,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: descriptionController,
+                    enabled: !isLeaveTask,
                     decoration: const InputDecoration(
                       labelText: 'Description',
                       border: OutlineInputBorder(),
@@ -329,6 +332,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         flex: 2,
                         child: TextFormField(
                           controller: hoursController,
+                          enabled: !isLeaveTask,
                           decoration: const InputDecoration(
                             labelText: 'Hours',
                             border: OutlineInputBorder(),
@@ -363,7 +367,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           DropdownMenuItem(value: 30, child: Text('30')),
                           DropdownMenuItem(value: 45, child: Text('45')),
                         ],
-                        onChanged: (value) {
+                        onChanged: isLeaveTask ? null : (value) {
                           setDialogState(() {
                             selectedMinutes = value!;
                           });
@@ -373,24 +377,34 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  value: status,
-                  decoration: const InputDecoration(
-                    labelText: 'Status',
-                    border: OutlineInputBorder(),
+                if (isLeaveTask)
+                  TextFormField(
+                    initialValue: 'Leave',
+                    enabled: false,
+                    decoration: const InputDecoration(
+                      labelText: 'Status',
+                      border: OutlineInputBorder(),
+                    ),
+                  )
+                else
+                  DropdownButtonFormField<String>(
+                    value: status,
+                    decoration: const InputDecoration(
+                      labelText: 'Status',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'pending', child: Text('Pending')),
+                      DropdownMenuItem(value: 'inprogress', child: Text('In Progress')),
+                      DropdownMenuItem(value: 'completed', child: Text('Completed')),
+                    ],
+                    onChanged: (value) {
+                      setDialogState(() {
+                        status = value!;
+                      });
+                    },
                   ),
-                  items: const [
-                    DropdownMenuItem(value: 'pending', child: Text('Pending')),
-                    DropdownMenuItem(value: 'inprogress', child: Text('In Progress')),
-                    DropdownMenuItem(value: 'completed', child: Text('Completed')),
-                  ],
-                  onChanged: (value) {
-                    setDialogState(() {
-                      status = value!;
-                    });
-                  },
-                ),
-                  const SizedBox(height: 12),
+                const SizedBox(height: 12),
                   TextFormField(
                     controller: detailsController,
                     decoration: const InputDecoration(
