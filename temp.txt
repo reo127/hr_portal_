@@ -1,0 +1,123 @@
+[
+    {
+        "_id": "6916d2c4a688ec30c395d2cf",
+        "userId": {
+            "_id": "6773847be63a07710515d063",
+            "email": "nethravathi.t@aroha.co.in",
+            "employeeName": "Nethravathi T"
+        },
+        "manager": {
+            "_id": "6771493bbeb79fa4b3033349",
+            "employeeName": "Prem Kumar Adi"
+        },
+        "leaveType": "sickLeave",
+        "isLOP": false,
+        "startDate": "2025-11-10T00:00:00.000Z",
+        "endDate": "2025-11-12T00:00:00.000Z",
+        "session": "fullDay",
+        "reason": "Extension of leave due to mother's health issue",
+        "status": "approved",
+        "totalDays": 3,
+        "lopDays": 0,
+        "nonLopDays": 3,
+        "appliedDate": "2025-11-14T06:57:08.234Z",
+        "month": "2025-11",
+        "compLeaveDetails": [],
+        "createdAt": "2025-11-14T06:57:08.235Z",
+        "updatedAt": "2025-11-14T07:00:28.620Z",
+        "__v": 0,
+        "balanceHistoryId": "6916d2c4a688ec30c395d2d7",
+        "approvedBy": {
+            "_id": "6771493bbeb79fa4b3033349",
+            "employeeName": "Prem Kumar Adi"
+        },
+        "approvedByName": "Prem Kumar Adi",
+        "approvedDate": "2025-11-14T07:00:28.613Z"
+    },
+    {
+        "_id": "6919f3156a59f6a7dac9c6aa",
+        "userId": {
+            "_id": "67ac3623b74ba4ebe1b954f3",
+            "employeeName": "Somagonda Patil",
+            "email": "somagonda.patil@ibridge360.com"
+        },
+        "manager": {
+            "_id": "6771493bbeb79fa4b3033349",
+            "employeeName": "Prem Kumar Adi"
+        },
+        "leaveType": "sickLeave",
+        "isLOP": false,
+        "startDate": "2025-11-17T00:00:00.000Z",
+        "endDate": "2025-11-17T00:00:00.000Z",
+        "session": "fullDay",
+        "reason": "Feeling unwell and need rest, taking a sick day.",
+        "status": "applied",
+        "totalDays": 1,
+        "lopDays": 0,
+        "nonLopDays": 1,
+        "appliedDate": "2025-11-16T15:51:49.773Z",
+        "month": "2025-11",
+        "compLeaveDetails": [],
+        "createdAt": "2025-11-16T15:51:49.773Z",
+        "updatedAt": "2025-11-16T15:51:49.786Z",
+        "__v": 0,
+        "balanceHistoryId": "6919f3156a59f6a7dac9c6ae"
+    },
+    {
+        "_id": "691aa12a6a59f6a7dac9cfe2",
+        "userId": {
+            "_id": "67e282e37933faadbdd6d4bf",
+            "employeeName": "Rohan Malo",
+            "email": "64rohanmalo@gmail.com"
+        },
+        "manager": {
+            "_id": "6771493bbeb79fa4b3033349",
+            "employeeName": "Prem Kumar Adi"
+        },
+        "leaveType": "sickLeave",
+        "isLOP": false,
+        "startDate": "2025-11-17T00:00:00.000Z",
+        "endDate": "2025-11-17T00:00:00.000Z",
+        "session": "fullDay",
+        "reason": "not feeling will",
+        "status": "applied",
+        "totalDays": 1,
+        "lopDays": 0,
+        "nonLopDays": 1,
+        "appliedDate": "2025-11-17T04:14:34.180Z",
+        "month": "2025-11",
+        "compLeaveDetails": [],
+        "createdAt": "2025-11-17T04:14:34.180Z",
+        "updatedAt": "2025-11-17T04:14:34.191Z",
+        "__v": 0,
+        "balanceHistoryId": "691aa12a6a59f6a7dac9cfe6"
+    },
+    {
+        "_id": "691c799134def25ef5c1a41e",
+        "userId": {
+            "_id": "688b5a559de2bbcfda851ae7",
+            "employeeName": "TM Anand Kumar",
+            "email": "tmanand94@gmail.com"
+        },
+        "manager": {
+            "_id": "67ad95cdd71a56681c911013",
+            "employeeName": "Shobha P"
+        },
+        "leaveType": "lop",
+        "isLOP": true,
+        "startDate": "2025-11-18T00:00:00.000Z",
+        "endDate": "2025-11-28T00:00:00.000Z",
+        "session": "fullDay",
+        "reason": "Asking for the extension of my leave for another two weeks to get my hand  fully recover.",
+        "status": "applied",
+        "totalDays": 9,
+        "lopDays": 9,
+        "nonLopDays": 0,
+        "appliedDate": "2025-11-18T13:50:09.257Z",
+        "month": "2025-11",
+        "compLeaveDetails": [],
+        "createdAt": "2025-11-18T13:50:09.260Z",
+        "updatedAt": "2025-11-18T13:50:09.260Z",
+        "__v": 0
+    }
+]
