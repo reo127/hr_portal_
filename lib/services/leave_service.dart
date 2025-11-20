@@ -39,6 +39,47 @@ class LeaveService {
     }
   }
 
+  // Apply for leave
+  Future<void> applyLeave({
+    required String userId,
+    required String leaveType,
+    required String startDate,
+    required String endDate,
+    required String session,
+    required String reason,
+  }) async {
+    try {
+      final response = await _dio.post(
+        '/leaves/apply',
+        data: {
+          'userId': userId,
+          'leaveType': leaveType,
+          'startDate': startDate,
+          'endDate': endDate,
+          'session': session,
+          'reason': reason,
+        },
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return;
+      } else {
+        throw Exception('Failed to apply leave: ${response.statusMessage}');
+      }
+    } on DioException catch (e) {
+      if (e.response != null) {
+        final message = e.response?.data['message'] ??
+                       e.response?.data['msg'] ??
+                       'Failed to apply leave';
+        throw Exception(message);
+      } else {
+        throw Exception('Network error. Please check your connection.');
+      }
+    } catch (e) {
+      throw Exception('An unexpected error occurred: $e');
+    }
+  }
+
   // Get all leaves history (filtered by userId on client side)
   Future<List<Leave>> getAllLeaves(String currentUserId) async {
     try {

@@ -22,6 +22,21 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
   bool _isLoadingHistory = false;
   String? _errorMessage;
 
+  // Form controllers and state
+  final _formKey = GlobalKey<FormState>();
+  final _reasonController = TextEditingController();
+  String? _selectedLeaveType;
+  String _selectedSession = 'fullDay';
+  DateTime? _startDate;
+  DateTime? _endDate;
+  bool _isSubmitting = false;
+
+  @override
+  void dispose() {
+    _reasonController.dispose();
+    super.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -242,6 +257,309 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
     );
   }
 
+  Future<void> _selectDate(BuildContext context, bool isStartDate) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: isStartDate ? (_startDate ?? DateTime.now()) : (_endDate ?? _startDate ?? DateTime.now()),
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (picked != null) {
+      setState(() {
+        if (isStartDate) {
+          _startDate = picked;
+          if (_endDate != null && _endDate!.isBefore(picked)) {
+            _endDate = picked;
+          }
+        } else {
+          _endDate = picked;
+        }
+      });
+    }
+  }
+
+  Future<void> _submitLeaveApplication() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    if (_startDate == null || _endDate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select start and end dates')),
+      );
+      return;
+    }
+
+    try {
+      setState(() {
+        _isSubmitting = true;
+      });
+
+      final user = await _authService.getCurrentUser();
+      if (user == null) {
+        throw Exception('User not logged in');
+      }
+
+      if (_selectedLeaveType == null) {
+        throw Exception('Please select a leave type');
+      }
+
+      await _leaveService.applyLeave(
+        userId: user.userId,
+        leaveType: _selectedLeaveType!,
+        startDate: DateFormat('yyyy-MM-dd').format(_startDate!),
+        endDate: DateFormat('yyyy-MM-dd').format(_endDate!),
+        session: _selectedSession,
+        reason: _reasonController.text,
+      );
+
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Leave application submitted successfully')),
+        );
+        // Refresh data
+        _fetchData();
+        // Reset form
+        _reasonController.clear();
+        _startDate = null;
+        _endDate = null;
+        _selectedLeaveType = null;
+        _selectedSession = 'fullDay';
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: ${e.toString()}')),
+        );
+      }
+    }
+  }
+
+  int _getLeaveBalance(String leaveType) {
+    if (_leaveBalance == null) return 0;
+
+    switch (leaveType) {
+      case 'casualLeave':
+        // CL and SL are combined
+        return _leaveBalance!.casualLeave + _leaveBalance!.sickLeave;
+      case 'earnedLeave':
+        return _leaveBalance!.earnedLeave;
+      case 'compensatoryLeave':
+        return _leaveBalance!.compLeaveDetails.total;
+      case 'bereavementLeave':
+        return _leaveBalance!.bereavementLeave;
+      case 'lop':
+        return 999; // LOP is always available
+      default:
+        return 0;
+    }
+  }
+
+  bool _isLeaveTypeAvailable(String leaveType) {
+    return _getLeaveBalance(leaveType) > 0;
+  }
+
+  String _getFirstAvailableLeaveType() {
+    final leaveTypes = ['casualLeave', 'earnedLeave', 'compensatoryLeave', 'bereavementLeave', 'lop'];
+    for (var type in leaveTypes) {
+      if (_isLeaveTypeAvailable(type)) {
+        return type;
+      }
+    }
+    return 'lop'; // Default to LOP if nothing else available
+  }
+
+  void _showApplyLeaveDialog() {
+    // Set initial leave type to first available
+    _selectedLeaveType = _getFirstAvailableLeaveType();
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Apply for Leave'),
+          content: SingleChildScrollView(
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Leave Type', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    value: _selectedLeaveType,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    isExpanded: true,
+                    items: [
+                      DropdownMenuItem(
+                        value: 'casualLeave',
+                        enabled: _isLeaveTypeAvailable('casualLeave'),
+                        child: Text(
+                          'CL/SL (${_getLeaveBalance('casualLeave')})',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: _isLeaveTypeAvailable('casualLeave') ? Colors.black : Colors.grey,
+                          ),
+                        ),
+                      ),
+                      DropdownMenuItem(
+                        value: 'earnedLeave',
+                        enabled: _isLeaveTypeAvailable('earnedLeave'),
+                        child: Text(
+                          'Earned Leave (${_getLeaveBalance('earnedLeave')})',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: _isLeaveTypeAvailable('earnedLeave') ? Colors.black : Colors.grey,
+                          ),
+                        ),
+                      ),
+                      DropdownMenuItem(
+                        value: 'compensatoryLeave',
+                        enabled: _isLeaveTypeAvailable('compensatoryLeave'),
+                        child: Text(
+                          'Comp-Off (${_getLeaveBalance('compensatoryLeave')})',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: _isLeaveTypeAvailable('compensatoryLeave') ? Colors.black : Colors.grey,
+                          ),
+                        ),
+                      ),
+                      DropdownMenuItem(
+                        value: 'bereavementLeave',
+                        enabled: _isLeaveTypeAvailable('bereavementLeave'),
+                        child: Text(
+                          'Bereavement Leave (${_getLeaveBalance('bereavementLeave')})',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: _isLeaveTypeAvailable('bereavementLeave') ? Colors.black : Colors.grey,
+                          ),
+                        ),
+                      ),
+                      const DropdownMenuItem(
+                        value: 'lop',
+                        child: Text('Loss of Pay', style: TextStyle(fontSize: 14)),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      setDialogState(() {
+                        _selectedLeaveType = value!;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Start Date', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  InkWell(
+                    onTap: () => _selectDate(context, true).then((_) => setDialogState(() {})),
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        suffixIcon: Icon(Icons.calendar_today),
+                      ),
+                      child: Text(
+                        _startDate != null ? DateFormat('MMM dd, yyyy').format(_startDate!) : 'Select start date',
+                        style: TextStyle(color: _startDate != null ? Colors.black : Colors.grey),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('End Date', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  InkWell(
+                    onTap: () => _selectDate(context, false).then((_) => setDialogState(() {})),
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        suffixIcon: Icon(Icons.calendar_today),
+                      ),
+                      child: Text(
+                        _endDate != null ? DateFormat('MMM dd, yyyy').format(_endDate!) : 'Select end date',
+                        style: TextStyle(color: _endDate != null ? Colors.black : Colors.grey),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Session', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    value: _selectedSession,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'fullDay', child: Text('Full Day')),
+                      DropdownMenuItem(value: 'firstHalf', child: Text('First Half')),
+                      DropdownMenuItem(value: 'secondHalf', child: Text('Second Half')),
+                    ],
+                    onChanged: (value) {
+                      setDialogState(() {
+                        _selectedSession = value!;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Reason', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _reasonController,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      hintText: 'Enter reason for leave',
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    maxLines: 3,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Please enter a reason';
+                      }
+                      return null;
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: _isSubmitting ? null : () {
+                Navigator.pop(context);
+                _reasonController.clear();
+                _startDate = null;
+                _endDate = null;
+                _selectedLeaveType = null;
+              },
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: _isSubmitting ? null : _submitLeaveApplication,
+              child: _isSubmitting
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Submit'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -341,9 +659,27 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                       ),
                     ),
                     const Divider(height: 1),
+                    // Apply Leave Button
+                    Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _showApplyLeaveDialog,
+                          icon: const Icon(Icons.add),
+                          label: const Text('Apply for Leave'),
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            backgroundColor: Theme.of(context).colorScheme.primary,
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const Divider(height: 1),
                     // Leave History Section
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                      padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -364,7 +700,6 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 12),
                     Expanded(
                       child: _leaveHistory.isEmpty
                           ? const Center(
