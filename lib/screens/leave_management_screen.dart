@@ -732,6 +732,7 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                       // Leave Calendar Section
                     Container(
                       margin: const EdgeInsets.all(16.0),
+                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 20),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(12),
