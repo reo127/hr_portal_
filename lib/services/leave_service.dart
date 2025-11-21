@@ -80,6 +80,34 @@ class LeaveService {
     }
   }
 
+  // Get all leaves for calendar (unfiltered - shows everyone's leaves)
+  Future<List<Leave>> getAllLeavesForCalendar() async {
+    try {
+      final response = await _dio.get(
+        '/leaves/all-leaves-calendar',
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = response.data;
+        final allLeaves = data.map((json) => Leave.fromJson(json)).toList();
+        return allLeaves;
+      } else {
+        throw Exception('Failed to fetch leaves: ${response.statusMessage}');
+      }
+    } on DioException catch (e) {
+      if (e.response != null) {
+        final message = e.response?.data['message'] ??
+                       e.response?.data['msg'] ??
+                       'Failed to fetch leaves';
+        throw Exception(message);
+      } else {
+        throw Exception('Network error. Please check your connection.');
+      }
+    } catch (e) {
+      throw Exception('An unexpected error occurred: $e');
+    }
+  }
+
   // Get all leaves history (filtered by userId on client side)
   Future<List<Leave>> getAllLeaves(String currentUserId) async {
     try {

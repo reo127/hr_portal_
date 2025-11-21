@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:table_calendar/table_calendar.dart';
 import '../widgets/app_drawer.dart';
 import '../services/leave_service.dart';
 import '../services/auth_service.dart';
@@ -21,6 +22,12 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
   bool _isLoading = true;
   bool _isLoadingHistory = false;
   String? _errorMessage;
+
+  // Calendar state
+  DateTime _focusedDay = DateTime.now();
+  DateTime? _selectedDay;
+  List<Leave> _allCalendarLeaves = [];
+  Map<DateTime, List<Leave>> _leaveEvents = {};
 
   // Form controllers and state
   final _formKey = GlobalKey<FormState>();
@@ -59,12 +66,36 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
 
       final leaveBalance = await _leaveService.getLeaveBalance(user.userId);
       final leaveHistory = await _leaveService.getAllLeaves(user.userId);
+      final calendarLeaves = await _leaveService.getAllLeavesForCalendar();
 
       print('DEBUG: Leave history count: ${leaveHistory.length}');
+      print('DEBUG: Calendar leaves count: ${calendarLeaves.length}');
+
+      // Build events map for calendar
+      final eventsMap = <DateTime, List<Leave>>{};
+      for (var leave in calendarLeaves) {
+        try {
+          final startDate = DateTime.parse(leave.startDate);
+          final endDate = DateTime.parse(leave.endDate);
+
+          // Add leave to each day in the range
+          for (var day = startDate; day.isBefore(endDate.add(const Duration(days: 1))); day = day.add(const Duration(days: 1))) {
+            final normalizedDay = DateTime(day.year, day.month, day.day);
+            if (eventsMap[normalizedDay] == null) {
+              eventsMap[normalizedDay] = [];
+            }
+            eventsMap[normalizedDay]!.add(leave);
+          }
+        } catch (e) {
+          print('DEBUG: Error parsing leave dates: $e');
+        }
+      }
 
       setState(() {
         _leaveBalance = leaveBalance;
         _leaveHistory = leaveHistory;
+        _allCalendarLeaves = calendarLeaves;
+        _leaveEvents = eventsMap;
         _isLoading = false;
       });
     } catch (e) {
@@ -142,6 +173,112 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
       default:
         return Colors.grey;
     }
+  }
+
+  // Calendar helper methods
+  List<Leave> _getEventsForDay(DateTime day) {
+    // Skip weekends - return empty list for Saturday and Sunday
+    if (day.weekday == DateTime.saturday || day.weekday == DateTime.sunday) {
+      return [];
+    }
+
+    final normalizedDay = DateTime(day.year, day.month, day.day);
+    return _leaveEvents[normalizedDay] ?? [];
+  }
+
+  // Get unique employee count for a day (Monday-Friday only)
+  int _getUniqueEmployeeCount(DateTime day) {
+    // Skip weekends (Saturday = 6, Sunday = 7)
+    if (day.weekday == DateTime.saturday || day.weekday == DateTime.sunday) {
+      return 0;
+    }
+
+    final leaves = _getEventsForDay(day);
+    if (leaves.isEmpty) return 0;
+
+    // Count unique employees
+    final uniqueUserIds = <String>{};
+    for (var leave in leaves) {
+      uniqueUserIds.add(leave.userId.id);
+    }
+    return uniqueUserIds.length;
+  }
+
+  // Show dialog with employees on leave for selected day
+  void _showEmployeesOnLeave(DateTime day) {
+    // Skip weekends
+    if (day.weekday == DateTime.saturday || day.weekday == DateTime.sunday) {
+      return;
+    }
+
+    final leaves = _getEventsForDay(day);
+    if (leaves.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No employees on leave this day')),
+      );
+      return;
+    }
+
+    // Group leaves by employee to avoid duplicates
+    final Map<String, Leave> employeeLeaves = {};
+    for (var leave in leaves) {
+      if (!employeeLeaves.containsKey(leave.userId.id)) {
+        employeeLeaves[leave.userId.id] = leave;
+      }
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Employees on Leave - ${_formatDate(day.toString())}'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: employeeLeaves.values.map((leave) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            leave.userId.employeeName,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            leave.getLeaveTypeDisplay(),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    _buildStatusChip(leave.getStatusDisplay()),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildStatusChip(String status) {
@@ -588,9 +725,97 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                     ],
                   ),
                 )
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+              : SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Leave Calendar Section
+                    Container(
+                      margin: const EdgeInsets.all(16.0),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.grey.withValues(alpha: 0.2),
+                            spreadRadius: 1,
+                            blurRadius: 5,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: TableCalendar(
+                        firstDay: DateTime.utc(2020, 1, 1),
+                        lastDay: DateTime.utc(2030, 12, 31),
+                        focusedDay: _focusedDay,
+                        selectedDayPredicate: (day) {
+                          return isSameDay(_selectedDay, day);
+                        },
+                        eventLoader: _getEventsForDay,
+                        calendarFormat: CalendarFormat.month,
+                        startingDayOfWeek: StartingDayOfWeek.sunday,
+                        calendarStyle: CalendarStyle(
+                          todayDecoration: BoxDecoration(
+                            color: Colors.blue.withValues(alpha: 0.3),
+                            shape: BoxShape.circle,
+                          ),
+                          selectedDecoration: const BoxDecoration(
+                            color: Colors.blue,
+                            shape: BoxShape.circle,
+                          ),
+                          markerDecoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        headerStyle: const HeaderStyle(
+                          formatButtonVisible: false,
+                          titleCentered: true,
+                          titleTextStyle: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        onDaySelected: (selectedDay, focusedDay) {
+                          setState(() {
+                            _selectedDay = selectedDay;
+                            _focusedDay = focusedDay;
+                          });
+                          // Show employees on leave dialog
+                          _showEmployeesOnLeave(selectedDay);
+                        },
+                        onPageChanged: (focusedDay) {
+                          _focusedDay = focusedDay;
+                        },
+                        calendarBuilders: CalendarBuilders(
+                          markerBuilder: (context, day, events) {
+                            final count = _getUniqueEmployeeCount(day);
+                            if (count == 0) return null;
+
+                            return Positioned(
+                              bottom: 2,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue,
+                                  borderRadius: BorderRadius.circular(10), 
+                                ),
+                                child: Text(
+                                  count.toString(),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Divider(height: 1),
                     // Leave Balance Section - Compact Grid
                     Padding(
                       padding: const EdgeInsets.all(16.0),
@@ -700,18 +925,22 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                         ],
                       ),
                     ),
-                    Expanded(
-                      child: _leaveHistory.isEmpty
-                          ? const Center(
+                    _leaveHistory.isEmpty
+                        ? const Padding(
+                            padding: EdgeInsets.all(40.0),
+                            child: Center(
                               child: Text(
                                 'No leave history found',
                                 style: TextStyle(fontSize: 16, color: Colors.grey),
                               ),
-                            )
-                          : ListView.builder(
-                              padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                              itemCount: _leaveHistory.length,
-                              itemBuilder: (context, index) {
+                            ),
+                          )
+                        : ListView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
+                            itemCount: _leaveHistory.length,
+                            itemBuilder: (context, index) {
                                 final leave = _leaveHistory[index];
                                 return Card(
                                   margin: const EdgeInsets.only(bottom: 12),
@@ -799,9 +1028,9 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                                 );
                               },
                             ),
-                    ),
                   ],
                 ),
+              ),
     );
   }
 }
