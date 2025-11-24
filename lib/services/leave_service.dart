@@ -4,7 +4,6 @@ import '../models/leave.dart';
 import 'auth_service.dart';
 
 class LeaveService {
-  static const String baseUrl = 'https://hrp.aroha.co.in/api';
   late final Dio _dio;
   final AuthService _authService;
 

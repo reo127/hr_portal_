@@ -1,18 +1,18 @@
 import 'package:dio/dio.dart';
 import '../models/task.dart';
+import '../config/app_config.dart';
 import 'storage_service.dart';
 
 class TaskService {
-  static const String baseUrl = 'https://hrp.aroha.co.in/api';
   final Dio _dio;
   final StorageService _storageService;
 
   TaskService({StorageService? storageService})
       : _storageService = storageService ?? StorageService(),
         _dio = Dio(BaseOptions(
-          baseUrl: baseUrl,
-          connectTimeout: const Duration(seconds: 30),
-          receiveTimeout: const Duration(seconds: 30),
+          baseUrl: AppConfig.baseUrl,
+          connectTimeout: AppConfig.connectTimeout,
+          receiveTimeout: AppConfig.receiveTimeout,
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
@@ -41,7 +41,7 @@ class TaskService {
 
       // Make the API call
       final url = '/tasks/AllTasksByUserId/$userId';
-      print('DEBUG: Making API call to: $baseUrl$url');
+      print('DEBUG: Making API call to: ${AppConfig.baseUrl}$url');
 
       final response = await _dio.request(
         url,
@@ -136,7 +136,7 @@ class TaskService {
 
       // Make the API call
       final url = '/tasks';
-      print('DEBUG: Making API call to: $baseUrl$url');
+      print('DEBUG: Making API call to: ${AppConfig.baseUrl}$url');
       print('DEBUG: Task data: ${task.toJson()}');
 
       final response = await _dio.request(
@@ -199,7 +199,7 @@ class TaskService {
 
       // Make the API call
       final url = '/tasks/${task.id}';
-      print('DEBUG: Making API call to: $baseUrl$url');
+      print('DEBUG: Making API call to: ${AppConfig.baseUrl}$url');
       print('DEBUG: Task data: ${task.toJson()}');
 
       final response = await _dio.request(

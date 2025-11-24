@@ -1,19 +1,19 @@
 import 'package:dio/dio.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 import '../models/user.dart';
+import '../config/app_config.dart';
 import 'storage_service.dart';
 
 class AuthService {
-  static const String baseUrl = 'https://hrp.aroha.co.in/api';
   final Dio _dio;
   final StorageService _storageService;
 
   AuthService({StorageService? storageService})
       : _storageService = storageService ?? StorageService(),
         _dio = Dio(BaseOptions(
-          baseUrl: baseUrl,
-          connectTimeout: const Duration(seconds: 30),
-          receiveTimeout: const Duration(seconds: 30),
+          baseUrl: AppConfig.baseUrl,
+          connectTimeout: AppConfig.connectTimeout,
+          receiveTimeout: AppConfig.receiveTimeout,
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
@@ -120,9 +120,9 @@ class AuthService {
   // Get Dio instance with auth headers for other API calls
   Dio getDioWithAuth() {
     return Dio(BaseOptions(
-      baseUrl: baseUrl,
-      connectTimeout: const Duration(seconds: 30),
-      receiveTimeout: const Duration(seconds: 30),
+      baseUrl: AppConfig.baseUrl,
+      connectTimeout: AppConfig.connectTimeout,
+      receiveTimeout: AppConfig.receiveTimeout,
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
