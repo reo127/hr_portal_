@@ -4,8 +4,10 @@ import 'package:table_calendar/table_calendar.dart';
 import '../widgets/app_drawer.dart';
 import '../services/leave_service.dart';
 import '../services/auth_service.dart';
+import '../services/holiday_service.dart';
 import '../models/leave_balance.dart';
 import '../models/leave.dart';
+import '../models/holiday.dart';
 
 class LeaveManagementScreen extends StatefulWidget {
   const LeaveManagementScreen({super.key});
@@ -17,8 +19,10 @@ class LeaveManagementScreen extends StatefulWidget {
 class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
   final LeaveService _leaveService = LeaveService();
   final AuthService _authService = AuthService();
+  final HolidayService _holidayService = HolidayService();
   LeaveBalance? _leaveBalance;
   List<Leave> _leaveHistory = [];
+  List<Holiday> _holidays = [];
   bool _isLoading = true;
   bool _isLoadingHistory = false;
   String? _errorMessage;
@@ -68,8 +72,18 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
       final leaveHistory = await _leaveService.getAllLeaves(user.userId);
       final calendarLeaves = await _leaveService.getAllLeavesForCalendar();
 
+      List<Holiday> holidays = [];
+      try {
+        holidays = await _holidayService.getAllHolidays();
+        print('DEBUG: Holidays fetched successfully: ${holidays.length}');
+      } catch (e) {
+        print('DEBUG: Error fetching holidays: $e');
+        // Don't fail the whole screen if holidays fail
+      }
+
       print('DEBUG: Leave history count: ${leaveHistory.length}');
       print('DEBUG: Calendar leaves count: ${calendarLeaves.length}');
+      print('DEBUG: Holidays count: ${holidays.length}');
 
       // Build events map for calendar
       final eventsMap = <DateTime, List<Leave>>{};
@@ -96,6 +110,7 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
         _leaveHistory = leaveHistory;
         _allCalendarLeaves = calendarLeaves;
         _leaveEvents = eventsMap;
+        _holidays = holidays;
         _isLoading = false;
       });
     } catch (e) {
@@ -697,6 +712,75 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
     );
   }
 
+  void _showHolidayListDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Holiday List 2025'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: _holidays.isEmpty
+              ? const Center(child: Text('No holidays found'))
+              : ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: _holidays.length,
+                  itemBuilder: (context, index) {
+                    final holiday = _holidays[index];
+                    final date = DateTime.parse(holiday.date);
+                    final dayOfWeek = DateFormat('EEEE').format(date);
+                    final formattedDate = DateFormat('dd MMM yyyy').format(date);
+
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: ListTile(
+                        leading: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(
+                            Icons.celebration,
+                            color: Colors.orange,
+                            size: 24,
+                          ),
+                        ),
+                        title: Text(
+                          holiday.name,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                        subtitle: Text(
+                          '$formattedDate • $dayOfWeek',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showApplyCompOffDialog() {
+    // Placeholder for comp-off application
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Apply Comp-Off feature coming soon')),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -729,6 +813,53 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Action Buttons Section
+                      Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: _showApplyCompOffDialog,
+                                icon: const Icon(Icons.add_circle_outline, size: 18),
+                                label: const Text('Apply Comp-Off'),
+                                style: ElevatedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 10),
+                                  backgroundColor: Colors.blue,
+                                  foregroundColor: Colors.white,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: _showHolidayListDialog,
+                                icon: const Icon(Icons.event_note, size: 18),
+                                label: const Text('Holiday List '),
+                                style: ElevatedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 10),
+                                  backgroundColor: Colors.orange,
+                                  foregroundColor: Colors.white,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: _fetchData,
+                                icon: const Icon(Icons.refresh, size: 18),
+                                label: const Text('Refresh'),
+                                style: ElevatedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 10),
+                                  backgroundColor: Colors.green,
+                                  foregroundColor: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Divider(height: 1),
                       // Leave Calendar Section
                     Container(
                       margin: const EdgeInsets.all(16.0),
