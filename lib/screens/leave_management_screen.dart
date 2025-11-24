@@ -819,40 +819,55 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                         child: Row(
                           children: [
                             Expanded(
-                              child: ElevatedButton.icon(
+                              child: ElevatedButton(
                                 onPressed: _showApplyCompOffDialog,
-                                icon: const Icon(Icons.add_circle_outline, size: 18),
-                                label: const Text('Apply Comp-Off'),
                                 style: ElevatedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(vertical: 10),
-                                  backgroundColor: Colors.blue,
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  backgroundColor: const Color(0xFF3F8E7E),
                                   foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                child: const Text(
+                                  'Apply Comp-Off',
+                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
                                 ),
                               ),
                             ),
                             const SizedBox(width: 8),
                             Expanded(
-                              child: ElevatedButton.icon(
+                              child: ElevatedButton(
                                 onPressed: _showHolidayListDialog,
-                                icon: const Icon(Icons.event_note, size: 18),
-                                label: const Text('Holiday List '),
                                 style: ElevatedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(vertical: 10),
-                                  backgroundColor: Colors.orange,
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  backgroundColor: const Color(0xFF3F8E7E),
                                   foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                child: const Text(
+                                  'Holiday List',
+                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
                                 ),
                               ),
                             ),
                             const SizedBox(width: 8),
                             Expanded(
-                              child: ElevatedButton.icon(
+                              child: ElevatedButton(
                                 onPressed: _fetchData,
-                                icon: const Icon(Icons.refresh, size: 18),
-                                label: const Text('Refresh'),
                                 style: ElevatedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(vertical: 10),
-                                  backgroundColor: Colors.green,
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  backgroundColor: const Color(0xFF3F8E7E),
                                   foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                child: const Text(
+                                  'Refresh',
+                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
                                 ),
                               ),
                             ),
@@ -929,8 +944,8 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                               child: Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: Colors.blue,
-                                  borderRadius: BorderRadius.circular(10), 
+                                  color: Colors.red,
+                                  borderRadius: BorderRadius.circular(10),
                                 ),
                                 child: Text(
                                   count.toString(),
@@ -1024,11 +1039,17 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                         child: ElevatedButton.icon(
                           onPressed: _showApplyLeaveDialog,
                           icon: const Icon(Icons.add),
-                          label: const Text('Apply for Leave'),
+                          label: const Text(
+                            'Apply for Leave',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
                           style: ElevatedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 12),
-                            backgroundColor: Theme.of(context).colorScheme.primary,
+                            backgroundColor: const Color(0xFF365e7d),
                             foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
                           ),
                         ),
                       ),
