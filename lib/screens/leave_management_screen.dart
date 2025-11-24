@@ -25,6 +25,7 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
   List<Holiday> _holidays = [];
   bool _isLoading = true;
   bool _isLoadingHistory = false;
+  bool _isRefreshing = false;
   String? _errorMessage;
 
   // Calendar state
@@ -54,10 +55,14 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
     _fetchData();
   }
 
-  Future<void> _fetchData() async {
+  Future<void> _fetchData({bool showRefreshMessage = false}) async {
     try {
       setState(() {
-        _isLoading = true;
+        if (showRefreshMessage) {
+          _isRefreshing = true;
+        } else {
+          _isLoading = true;
+        }
         _errorMessage = null;
       });
 
@@ -112,12 +117,23 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
         _leaveEvents = eventsMap;
         _holidays = holidays;
         _isLoading = false;
+        _isRefreshing = false;
       });
+
+      if (showRefreshMessage && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Data refreshed successfully'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
     } catch (e) {
       print('DEBUG: Error in _fetchData: $e');
       setState(() {
         _errorMessage = e.toString();
         _isLoading = false;
+        _isRefreshing = false;
       });
     }
   }
@@ -856,7 +872,7 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                             const SizedBox(width: 8),
                             Expanded(
                               child: ElevatedButton(
-                                onPressed: _fetchData,
+                                onPressed: _isRefreshing ? null : () => _fetchData(showRefreshMessage: true),
                                 style: ElevatedButton.styleFrom(
                                   padding: const EdgeInsets.symmetric(vertical: 14),
                                   backgroundColor: const Color(0xFF3F8E7E),
@@ -865,10 +881,19 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                 ),
-                                child: const Text(
-                                  'Refresh',
-                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-                                ),
+                                child: _isRefreshing
+                                    ? const SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                        ),
+                                      )
+                                    : const Text(
+                                        'Refresh',
+                                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                                      ),
                               ),
                             ),
                           ],
