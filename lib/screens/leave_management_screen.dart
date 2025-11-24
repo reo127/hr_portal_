@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
+import 'package:file_picker/file_picker.dart';
 import '../widgets/app_drawer.dart';
 import '../services/leave_service.dart';
 import '../services/auth_service.dart';
@@ -43,9 +44,18 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
   DateTime? _endDate;
   bool _isSubmitting = false;
 
+  // Comp-off form state
+  final _compOffFormKey = GlobalKey<FormState>();
+  final _compOffReasonController = TextEditingController();
+  DateTime? _compOffStartDate;
+  DateTime? _compOffEndDate;
+  PlatformFile? _compOffProofFile;
+  bool _isSubmittingCompOff = false;
+
   @override
   void dispose() {
     _reasonController.dispose();
+    _compOffReasonController.dispose();
     super.dispose();
   }
 
@@ -790,10 +800,245 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
     );
   }
 
+  Future<void> _pickProofFile() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'png', 'jpg', 'jpeg', 'doc', 'docx'],
+      );
+
+      if (result != null && result.files.isNotEmpty) {
+        setState(() {
+          _compOffProofFile = result.files.first;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error picking file: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _selectCompOffDate(BuildContext context, bool isStartDate) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: isStartDate ? (_compOffStartDate ?? DateTime.now()) : (_compOffEndDate ?? _compOffStartDate ?? DateTime.now()),
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (picked != null) {
+      setState(() {
+        if (isStartDate) {
+          _compOffStartDate = picked;
+          if (_compOffEndDate != null && _compOffEndDate!.isBefore(picked)) {
+            _compOffEndDate = picked;
+          }
+        } else {
+          _compOffEndDate = picked;
+        }
+      });
+    }
+  }
+
+  Future<void> _submitCompOffApplication() async {
+    if (!_compOffFormKey.currentState!.validate()) {
+      return;
+    }
+
+    if (_compOffStartDate == null || _compOffEndDate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select start and end dates')),
+      );
+      return;
+    }
+
+    try {
+      setState(() {
+        _isSubmittingCompOff = true;
+      });
+
+      final user = await _authService.getCurrentUser();
+      if (user == null) {
+        throw Exception('User not logged in');
+      }
+
+      await _leaveService.applyCompOff(
+        userId: user.userId,
+        startDate: DateFormat('yyyy-MM-dd').format(_compOffStartDate!),
+        endDate: DateFormat('yyyy-MM-dd').format(_compOffEndDate!),
+        reason: _compOffReasonController.text,
+        filePath: _compOffProofFile?.path,
+        fileName: _compOffProofFile?.name,
+      );
+
+      if (mounted) {
+        setState(() {
+          _isSubmittingCompOff = false;
+        });
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Comp-off request submitted successfully')),
+        );
+        // Refresh data
+        _fetchData();
+        // Reset form
+        _compOffReasonController.clear();
+        _compOffStartDate = null;
+        _compOffEndDate = null;
+        _compOffProofFile = null;
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isSubmittingCompOff = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: ${e.toString()}')),
+        );
+      }
+    }
+  }
+
   void _showApplyCompOffDialog() {
-    // Placeholder for comp-off application
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Apply Comp-Off feature coming soon')),
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Apply for Comp-Off'),
+          content: SingleChildScrollView(
+            child: Form(
+              key: _compOffFormKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Start Date', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  InkWell(
+                    onTap: () => _selectCompOffDate(context, true).then((_) => setDialogState(() {})),
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        suffixIcon: Icon(Icons.calendar_today),
+                      ),
+                      child: Text(
+                        _compOffStartDate != null ? DateFormat('MMM dd, yyyy').format(_compOffStartDate!) : 'Select start date',
+                        style: TextStyle(color: _compOffStartDate != null ? Colors.black : Colors.grey),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('End Date', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  InkWell(
+                    onTap: () => _selectCompOffDate(context, false).then((_) => setDialogState(() {})),
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        suffixIcon: Icon(Icons.calendar_today),
+                      ),
+                      child: Text(
+                        _compOffEndDate != null ? DateFormat('MMM dd, yyyy').format(_compOffEndDate!) : 'Select end date',
+                        style: TextStyle(color: _compOffEndDate != null ? Colors.black : Colors.grey),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Reason', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _compOffReasonController,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      hintText: 'Enter reason for comp-off',
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    maxLines: 3,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Please enter a reason';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Proof (Optional)', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  InkWell(
+                    onTap: () => _pickProofFile().then((_) => setDialogState(() {})),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.attach_file, color: Colors.grey),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _compOffProofFile != null
+                                  ? _compOffProofFile!.name
+                                  : 'Tap to attach proof (PDF, PNG, JPG, DOC)',
+                              style: TextStyle(
+                                color: _compOffProofFile != null ? Colors.black : Colors.grey,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (_compOffProofFile != null)
+                            IconButton(
+                              icon: const Icon(Icons.close, size: 18),
+                              onPressed: () {
+                                setDialogState(() {
+                                  _compOffProofFile = null;
+                                });
+                              },
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Supported formats: PDF, PNG, JPG, DOC',
+                    style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: _isSubmittingCompOff ? null : () {
+                Navigator.pop(context);
+                _compOffReasonController.clear();
+                _compOffStartDate = null;
+                _compOffEndDate = null;
+                _compOffProofFile = null;
+              },
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: _isSubmittingCompOff ? null : _submitCompOffApplication,
+              child: _isSubmittingCompOff
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Submit'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

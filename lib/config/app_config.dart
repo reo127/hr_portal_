@@ -9,7 +9,7 @@ class AppConfig {
   static const Environment currentEnvironment = Environment.development;
 
   // API Base URLs
-  static const String _devBaseUrl = 'https://dev.hrp.aroha.co.in/api';  // Update with your dev URL
+  static const String _devBaseUrl = 'https://dev.hrp.aroha.co.in/api'; 
   static const String _prodBaseUrl = 'https://hrp.aroha.co.in/api';
 
   // Get current base URL based on environment

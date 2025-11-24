@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import '../models/leave_balance.dart';
 import '../models/leave.dart';
+import '../models/comp_off.dart';
 import 'auth_service.dart';
 
 class LeaveService {
@@ -168,6 +169,75 @@ class LeaveService {
       }
     } catch (e) {
       print('DEBUG: Exception: $e');
+      throw Exception('An unexpected error occurred: $e');
+    }
+  }
+
+  // Apply for comp-off
+  Future<CompOff> applyCompOff({
+    required String userId,
+    required String startDate,
+    required String endDate,
+    required String reason,
+    String? filePath,
+    String? fileName,
+  }) async {
+    try {
+      // Create form data
+      final formData = FormData.fromMap({
+        'userId': userId,
+        'startDate': startDate,
+        'endDate': endDate,
+        'reason': reason,
+      });
+
+      // Add file if provided
+      if (filePath != null && fileName != null) {
+        formData.files.add(
+          MapEntry(
+            'proof',
+            await MultipartFile.fromFile(
+              filePath,
+              filename: fileName,
+            ),
+          ),
+        );
+      }
+
+      print('DEBUG: Applying comp-off with data: userId=$userId, startDate=$startDate, endDate=$endDate');
+
+      final response = await _dio.post(
+        '/comp-offs/apply',
+        data: formData,
+      );
+
+      print('DEBUG: Comp-off response status: ${response.statusCode}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = response.data;
+        print('DEBUG: Comp-off response: $data');
+
+        if (data['compOff'] != null) {
+          return CompOff.fromJson(data['compOff']);
+        } else {
+          throw Exception('Invalid response format');
+        }
+      } else {
+        throw Exception('Failed to apply comp-off: ${response.statusMessage}');
+      }
+    } on DioException catch (e) {
+      print('DEBUG: DioException in applyCompOff: ${e.message}');
+      if (e.response != null) {
+        print('DEBUG: Error response: ${e.response?.data}');
+        final message = e.response?.data['message'] ??
+                       e.response?.data['msg'] ??
+                       'Failed to apply comp-off';
+        throw Exception(message);
+      } else {
+        throw Exception('Network error. Please check your connection.');
+      }
+    } catch (e) {
+      print('DEBUG: Exception in applyCompOff: $e');
       throw Exception('An unexpected error occurred: $e');
     }
   }
