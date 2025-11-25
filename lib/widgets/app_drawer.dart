@@ -78,16 +78,16 @@ class AppDrawer extends StatelessWidget {
             },
           ),
           ListTile(
-            leading: const Icon(Icons.task),
-            title: const Text('Tasks'),
-            selected: currentRoute == 'tasks',
-            onTap: () => _navigateTo(context, 'tasks', const HomeScreen()),
-          ),
-          ListTile(
             leading: const Icon(Icons.dashboard),
             title: const Text('Dashboard'),
             selected: currentRoute == 'dashboard',
             onTap: () => _navigateTo(context, 'dashboard', const DashboardScreen()),
+          ),
+          ListTile(
+            leading: const Icon(Icons.task),
+            title: const Text('Tasks'),
+            selected: currentRoute == 'tasks',
+            onTap: () => _navigateTo(context, 'tasks', const HomeScreen()),
           ),
           ListTile(
             leading: const Icon(Icons.assignment),

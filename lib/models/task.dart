@@ -2,7 +2,7 @@ class Task {
   final String id;
   final String title;
   final String description;
-  final int hours;
+  final double hours;
   final String status;
   final String? date;
   final String? userId;
@@ -35,14 +35,14 @@ class Task {
 
   factory Task.fromJson(Map<String, dynamic> json) {
     // Handle hours as either int or double
-    int hoursValue = 0;
+    double hoursValue = 0.0;
     if (json['hours'] != null) {
-      if (json['hours'] is int) {
+      if (json['hours'] is double) {
         hoursValue = json['hours'];
-      } else if (json['hours'] is double) {
-        hoursValue = (json['hours'] as double).toInt();
+      } else if (json['hours'] is int) {
+        hoursValue = (json['hours'] as int).toDouble();
       } else {
-        hoursValue = int.tryParse(json['hours'].toString()) ?? 0;
+        hoursValue = double.tryParse(json['hours'].toString()) ?? 0.0;
       }
     }
 
@@ -88,7 +88,7 @@ class Task {
     String? id,
     String? title,
     String? description,
-    int? hours,
+    double? hours,
     String? status,
     String? date,
     String? userId,

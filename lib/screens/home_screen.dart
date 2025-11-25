@@ -177,6 +177,18 @@ class _HomeScreenState extends State<HomeScreen> {
     return hours + minutesInHours;
   }
 
+  // Format hours for display (e.g., 5.5 -> "5h 30m", 5.0 -> "5h")
+  String _formatHours(double hours) {
+    final wholeHours = hours.floor();
+    final minutes = ((hours - wholeHours) * 60).round();
+
+    if (minutes == 0) {
+      return '${wholeHours}h';
+    } else {
+      return '${wholeHours}h ${minutes}m';
+    }
+  }
+
   // Show date picker
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
@@ -217,7 +229,7 @@ class _HomeScreenState extends State<HomeScreen> {
           id: '',
           title: _titleController.text,
           description: _descriptionController.text,
-          hours: _calculateTotalHours().toInt(),
+          hours: _calculateTotalHours(),
           status: _selectedStatus,
           date: formattedDate,
           userId: userId,
@@ -228,7 +240,7 @@ class _HomeScreenState extends State<HomeScreen> {
         print('DEBUG: Creating task with data:');
         print('  title: ${_titleController.text}');
         print('  description: ${_descriptionController.text}');
-        print('  hours: ${_calculateTotalHours().toInt()}');
+        print('  hours: ${_calculateTotalHours()}');
         print('  status: $_selectedStatus');
         print('  date: $formattedDate');
         print('  userId: $userId');
@@ -279,9 +291,12 @@ class _HomeScreenState extends State<HomeScreen> {
     final isLeaveTask = task.onLeave == true;
     final titleController = TextEditingController(text: task.title);
     final descriptionController = TextEditingController(text: task.description);
-    final hoursController = TextEditingController(text: task.hours.toString());
+    // Extract whole hours and minutes from double
+    final wholeHours = task.hours.floor();
+    final minutes = ((task.hours - wholeHours) * 60).round();
+    final hoursController = TextEditingController(text: wholeHours.toString());
     final detailsController = TextEditingController(text: task.details ?? '');
-    int selectedMinutes = 0;
+    int selectedMinutes = minutes;
     String status = isLeaveTask ? 'leave' : task.status;
 
     showDialog(
@@ -438,11 +453,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 final messenger = ScaffoldMessenger.of(context);
 
                 try {
+                  // Calculate total hours from hours and minutes
+                  final hours = int.tryParse(hoursController.text) ?? 0;
+                  final totalHours = hours + (selectedMinutes / 60.0);
+
                   // Create updated task with all existing fields
                   final updatedTask = task.copyWith(
                     title: titleController.text.trim(),
                     description: descriptionController.text.trim(),
-                    hours: int.tryParse(hoursController.text) ?? task.hours,
+                    hours: totalHours,
                     status: status,
                     details: detailsController.text.trim(),
                   );
@@ -909,7 +928,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                               ),
                                               const SizedBox(width: 4),
                                               Text(
-                                                '${task.hours}h',
+                                                _formatHours(task.hours),
                                                 style: TextStyle(
                                                   fontSize: 12,
                                                   color: Colors.grey[700],
