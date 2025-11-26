@@ -117,6 +117,129 @@ class AuthService {
     await _storageService.clearAuthData();
   }
 
+  // Generate OTP for password reset
+  Future<String> generateOTP(String email) async {
+    try {
+      final response = await _dio.get(
+        '/generateOTP',
+        queryParameters: {'email': email},
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = response.data;
+        final otpCode = data['code'] ?? '';
+
+        // Send the OTP via email
+        await sendOTPEmail(email, otpCode);
+
+        return otpCode;
+      } else {
+        throw Exception('Failed to generate OTP');
+      }
+    } on DioException catch (e) {
+      if (e.response != null) {
+        final message = e.response?.data['message'] ??
+                       e.response?.data['msg'] ??
+                       'Failed to generate OTP';
+        throw Exception(message);
+      } else {
+        throw Exception('Network error. Please check your connection.');
+      }
+    } catch (e) {
+      throw Exception('An unexpected error occurred: $e');
+    }
+  }
+
+  // Send OTP email
+  Future<void> sendOTPEmail(String email, String otpCode) async {
+    try {
+      final response = await _dio.post(
+        '/registerMail',
+        data: {
+          'username': email,
+          'userEmail': email,
+          'text': 'Your Password Recovery OTP is $otpCode. Verify and recover your password.',
+          'subject': 'Password recovery OTP',
+        },
+      );
+
+      if (response.statusCode != 200 && response.statusCode != 201) {
+        throw Exception('Failed to send OTP email');
+      }
+    } on DioException catch (e) {
+      if (e.response != null) {
+        final message = e.response?.data['message'] ??
+                       e.response?.data['msg'] ??
+                       'Failed to send OTP email';
+        throw Exception(message);
+      } else {
+        throw Exception('Network error. Please check your connection.');
+      }
+    } catch (e) {
+      throw Exception('An unexpected error occurred: $e');
+    }
+  }
+
+  // Verify OTP
+  Future<bool> verifyOTP(String email, String code) async {
+    try {
+      final response = await _dio.get(
+        '/verifyOTP',
+        queryParameters: {
+          'email': email,
+          'code': code,
+        },
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return true;
+      } else {
+        throw Exception('OTP verification failed');
+      }
+    } on DioException catch (e) {
+      if (e.response != null) {
+        final message = e.response?.data['message'] ??
+                       e.response?.data['msg'] ??
+                       'Invalid OTP';
+        throw Exception(message);
+      } else {
+        throw Exception('Network error. Please check your connection.');
+      }
+    } catch (e) {
+      throw Exception('An unexpected error occurred: $e');
+    }
+  }
+
+  // Reset password
+  Future<bool> resetPassword(String email, String password) async {
+    try {
+      final response = await _dio.put(
+        '/resetPassword',
+        data: {
+          'email': email,
+          'password': password,
+        },
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return true;
+      } else {
+        throw Exception('Password reset failed');
+      }
+    } on DioException catch (e) {
+      if (e.response != null) {
+        final message = e.response?.data['message'] ??
+                       e.response?.data['msg'] ??
+                       'Failed to reset password';
+        throw Exception(message);
+      } else {
+        throw Exception('Network error. Please check your connection.');
+      }
+    } catch (e) {
+      throw Exception('An unexpected error occurred: $e');
+    }
+  }
+
   // Get Dio instance with auth headers for other API calls
   Dio getDioWithAuth() {
     return Dio(BaseOptions(

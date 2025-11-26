@@ -302,13 +302,11 @@ class _HomeScreenState extends State<HomeScreen> {
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom,
-          ),
-          child: AlertDialog(
-            title: Text(isLeaveTask ? 'Edit Leave' : 'Edit Task'),
-            content: SingleChildScrollView(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(isLeaveTask ? 'Edit Leave' : 'Edit Task'),
+          content: SizedBox(
+            width: MediaQuery.of(context).size.width * 0.9,
+            child: SingleChildScrollView(
               child: Form(
                 key: formKey,
                 child: Column(
@@ -441,6 +439,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
             ),
+            ),
           ),
           actions: [
             TextButton(
@@ -501,7 +500,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-        ),
     );
   }
 

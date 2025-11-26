@@ -5,8 +5,8 @@ enum Environment {
 
 class AppConfig {
   // ⚠️ CHANGE THIS TO SWITCH BETWEEN ENVIRONMENTS ⚠️
-  // static const Environment currentEnvironment = Environment.production;
-  static const Environment currentEnvironment = Environment.development;
+  static const Environment currentEnvironment = Environment.production;
+  // static const Environment currentEnvironment = Environment.development;
 
   // API Base URLs
   static const String _devBaseUrl = 'https://dev.hrp.aroha.co.in/api'; 
